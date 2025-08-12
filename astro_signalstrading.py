@@ -3,235 +3,207 @@ import pandas as pd
 import json
 from datetime import datetime, time, timedelta
 import requests
-from io import StringIO
+import random
 
 # === TELEGRAM SETTINGS ===
 BOT_TOKEN = "7613703350:AAE-W4dJ37lngM4lO2Tnuns8-a-80jYRtxk"
 CHAT_ID = "-1002840229810"
 
-# === MARKET TIMINGS ===
-NSE_START = time(9, 15)
-NSE_END = time(15, 30)
-GLOBAL_START = time(5, 0)
-GLOBAL_END = time(21, 0)
-
-# === ENHANCED CONFIG ===
-DEFAULT_CONFIG = {
-    "sector_planets": {
-        "BANKING": ["Ju", "Ve", "Me"],
-        "METAL": ["Ma", "Sa", "Su"],
-        "PHARMA": ["Mo", "Me", "Ju"],
-        "AUTO": ["Ma", "Sa", "Ra"],
-        "IT": ["Me", "Ju", "Sa"],
-        "FMCG": ["Ve", "Mo", "Ju"],
-        "OIL": ["Ma", "Sa", "Su"],
-        "CRYPTO": ["Ra", "Ke", "Sa"],
-        "GOLD": ["Su", "Ju", "Ve"],
-        "SILVER": ["Mo", "Ve", "Me"]
+# === ENHANCED ASTROLOGICAL ANALYSIS CONFIG ===
+ASTRO_CONFIG = {
+    "planet_speeds": {
+        "Mo": 13.2,    # Moon moves ~13 degrees per day (fastest)
+        "Me": 1.0,     # Mercury varies 0.5-2 degrees per day
+        "Ve": 1.2,     # Venus varies 0.7-1.2 degrees per day  
+        "Su": 1.0,     # Sun moves ~1 degree per day
+        "Ma": 0.5,     # Mars varies 0.3-0.7 degrees per day
+        "Ju": 0.083,   # Jupiter ~0.08 degrees per day
+        "Sa": 0.033,   # Saturn ~0.03 degrees per day
+        "Ra": -0.053,  # Rahu moves backward ~0.05 degrees per day
+        "Ke": -0.053   # Ketu moves backward ~0.05 degrees per day
     },
-    "friendly_nakshatras": {
-        "Mo": ["Rohini", "Hasta", "Shravana", "Purvabhadrapada", "Mrigashirsha"],
-        "Ma": ["Mrigashirsha", "Chitra", "Dhanishta", "Bharani", "Magha"],
-        "Me": ["Ashlesha", "Jyeshtha", "Revati", "Hasta", "Punarvasu"],
-        "Ju": ["Punarvasu", "Vishakha", "Purvabhadrapada", "Pushya", "Anuradha"],
-        "Ve": ["Bharani", "Purvaphalguni", "Purvashadha", "Rohini", "Swati"],
-        "Sa": ["Pushya", "Anuradha", "Uttarabhadrapada", "Punarvasu", "Uttarashadha"],
-        "Ra": ["Ardra", "Swati", "Shatabhisha", "Ashlesha", "Magha"],
-        "Ke": ["Ashwini", "Magha", "Mula", "Bharani", "Kritika"],
-        "Su": ["Kritika", "Uttaraphalguni", "Uttarashadha", "Bharani", "Magha"]
+    
+    "nakshatra_degrees": {
+        "Ashwini": 0, "Bharani": 13.33, "Kritika": 26.67, "Rohini": 40,
+        "Mrigashirsha": 53.33, "Ardra": 66.67, "Punarvasu": 80, "Pushya": 93.33,
+        "Ashlesha": 106.67, "Magha": 120, "Purvaphalguni": 133.33, "Uttaraphalguni": 146.67,
+        "Hasta": 160, "Chitra": 173.33, "Swati": 186.67, "Vishakha": 200,
+        "Anuradha": 213.33, "Jyeshtha": 226.67, "Mula": 240, "Purvashadha": 253.33,
+        "Uttarashadha": 266.67, "Shravana": 280, "Dhanishta": 293.33, "Shatabhisha": 306.67,
+        "Purvabhadrapada": 320, "Uttarabhadrapada": 333.33, "Revati": 346.67
     },
-    "enemy_nakshatras": {
-        "Mo": ["Ashlesha", "Jyeshtha", "Mula", "Bharani", "Magha"],
-        "Ma": ["Rohini", "Hasta", "Shravana", "Pushya", "Anuradha"],
-        "Me": ["Kritika", "Uttaraphalguni", "Uttarashadha", "Mrigashirsha", "Chitra"],
-        "Ju": ["Ashlesha", "Jyeshtha", "Mula", "Kritika", "Magha"],
-        "Ve": ["Ardra", "Swati", "Shatabhisha", "Ashlesha", "Jyeshtha"],
-        "Sa": ["Bharani", "Purvaphalguni", "Purvashadha", "Rohini", "Swati"],
-        "Ra": ["Rohini", "Hasta", "Shravana", "Pushya", "Uttaraphalguni"],
-        "Ke": ["Rohini", "Hasta", "Shravana", "Punarvasu", "Vishakha"],
-        "Su": ["Ashlesha", "Jyeshtha", "Shatabhisha", "Swati", "Revati"]
-    }
-}
-
-PLANET_MAPPING = {
-    "Mo": "Moon", "Ma": "Mars", "Me": "Mercury", "Ju": "Jupiter",
-    "Ve": "Venus", "Sa": "Saturn", "Ra": "Rahu", "Ke": "Ketu", "Su": "Sun"
-}
-
-def load_config():
-    try:
-        with open("config.json") as f:
-            return json.load(f)
-    except:
-        st.warning("⚠️ config.json not found. Using default configuration.")
-        return DEFAULT_CONFIG
-
-def normalize_nakshatra(name):
-    """Normalize nakshatra names for matching."""
-    nakshatra_map = {
-        "purvabhadrapada": "purvabhadrapada",
-        "uttarabhadrapada": "uttarabhadrapada", 
-        "purvashadha": "purvashadha",
-        "uttarashadha": "uttarashadha",
-        "purvaphalguni": "purvaphalguni",
-        "uttaraphalguni": "uttaraphalguni",
-        "ashlesha": "ashlesha",
-        "mrigashirsha": "mrigashirsha",
-        "punarvasu": "punarvasu",
-        "ashwini": "ashwini",
-        "bharani": "bharani",
-        "kritika": "kritika",
-        "rohini": "rohini",
-        "ardra": "ardra",
-        "pushya": "pushya"
-    }
     
-    normalized = name.strip().lower().replace(" ", "").replace("-", "")
-    return nakshatra_map.get(normalized, normalized)
-
-def parse_multiple_transit_files(uploaded_files):
-    """Parse multiple transit files and combine them."""
-    all_data = []
-    file_info = {}
-    
-    for uploaded_file in uploaded_files:
-        file_name = uploaded_file.name
-        file_content = uploaded_file.read().decode('utf-8')
-        
-        # Reset file pointer for multiple reads
-        uploaded_file.seek(0)
-        
-        lines = file_content.strip().split('\n')
-        file_data = []
-        
-        for line in lines:
-            if line.strip() and not line.startswith('Planet'):
-                try:
-                    if '\t' in line:
-                        parts = line.split('\t')
-                    else:
-                        parts = line.split()
-                    
-                    if len(parts) >= 9:
-                        planet_code = parts[0].strip('*')
-                        date_str = parts[1]
-                        time_str = parts[2]
-                        nakshatra = parts[7]
-                        
-                        dt = datetime.strptime(f"{date_str} {time_str}", '%Y-%m-%d %H:%M:%S')
-                        
-                        entry = {
-                            'Planet': planet_code,
-                            'DateTime': dt,
-                            'Date': dt.date(),
-                            'Time': dt.strftime('%H:%M:%S'),
-                            'Nakshatra': nakshatra,
-                            'Source_File': file_name
-                        }
-                        
-                        file_data.append(entry)
-                        all_data.append(entry)
-                        
-                except Exception as e:
-                    continue
-        
-        file_info[file_name] = {
-            'records': len(file_data),
-            'dates': list(set([d['Date'] for d in file_data])),
-            'planets': list(set([d['Planet'] for d in file_data]))
+    "sector_analysis": {
+        "BANKING": {
+            "primary_planets": ["Ju", "Ve"],
+            "secondary_planets": ["Me", "Mo"],
+            "strength_hours": ["10:00", "11:30", "14:00", "15:00"],
+            "weakness_hours": ["09:30", "12:00", "13:30"]
+        },
+        "METAL": {
+            "primary_planets": ["Ma", "Sa"],
+            "secondary_planets": ["Su", "Ra"],
+            "strength_hours": ["09:15", "10:30", "13:00", "14:30"],
+            "weakness_hours": ["11:00", "12:30", "15:00"]
+        },
+        "PHARMA": {
+            "primary_planets": ["Mo", "Me"],
+            "secondary_planets": ["Ju", "Ve"],
+            "strength_hours": ["09:30", "11:00", "13:30", "14:45"],
+            "weakness_hours": ["10:15", "12:15", "15:15"]
+        },
+        "CRYPTO": {
+            "primary_planets": ["Ra", "Ke"],
+            "secondary_planets": ["Sa", "Ma"],
+            "strength_hours": ["06:00", "08:00", "16:00", "20:00"],
+            "weakness_hours": ["07:00", "10:00", "18:00"]
+        },
+        "GOLD": {
+            "primary_planets": ["Su", "Ju"],
+            "secondary_planets": ["Ve", "Mo"],
+            "strength_hours": ["07:00", "12:00", "17:00", "19:00"],
+            "weakness_hours": ["09:00", "14:00", "21:00"]
         }
+    },
     
-    return pd.DataFrame(all_data), file_info
+    "time_based_strength": {
+        "morning": {"Mo": 1.5, "Su": 1.8, "Me": 1.2},
+        "midday": {"Su": 2.0, "Ma": 1.5, "Ju": 1.3},
+        "evening": {"Ve": 1.8, "Sa": 1.2, "Ra": 1.4},
+        "night": {"Mo": 1.6, "Sa": 1.5, "Ke": 1.3}
+    }
+}
 
-def get_market_timing(symbol):
-    if symbol.startswith('NSE:') or symbol.startswith('BSE:'):
-        return NSE_START, NSE_END
-    else:
-        return GLOBAL_START, GLOBAL_END
+def load_enhanced_config():
+    """Load enhanced astrological configuration."""
+    base_config = {
+        "bullish_combinations": {
+            "BANKING": [
+                {"planet": "Ju", "nakshatras": ["Punarvasu", "Vishakha", "Purvabhadrapada"], "strength": 2.0},
+                {"planet": "Ve", "nakshatras": ["Bharani", "Purvaphalguni", "Purvashadha"], "strength": 1.8},
+                {"planet": "Me", "nakshatras": ["Hasta", "Revati"], "strength": 1.5}
+            ],
+            "METAL": [
+                {"planet": "Ma", "nakshatras": ["Mrigashirsha", "Chitra", "Dhanishta"], "strength": 2.0},
+                {"planet": "Sa", "nakshatras": ["Pushya", "Anuradha", "Uttarabhadrapada"], "strength": 1.8},
+                {"planet": "Su", "nakshatras": ["Kritika", "Uttaraphalguni", "Uttarashadha"], "strength": 1.5}
+            ],
+            "PHARMA": [
+                {"planet": "Mo", "nakshatras": ["Rohini", "Hasta", "Shravana"], "strength": 2.0},
+                {"planet": "Me", "nakshatras": ["Ashlesha", "Jyeshtha", "Revati"], "strength": 1.8},
+                {"planet": "Ju", "nakshatras": ["Punarvasu", "Vishakha"], "strength": 1.5}
+            ],
+            "CRYPTO": [
+                {"planet": "Ra", "nakshatras": ["Ardra", "Swati", "Shatabhisha"], "strength": 2.0},
+                {"planet": "Ke", "nakshatras": ["Ashwini", "Magha", "Mula"], "strength": 1.8},
+                {"planet": "Sa", "nakshatras": ["Uttarabhadrapada", "Shatabhisha"], "strength": 1.5}
+            ],
+            "GOLD": [
+                {"planet": "Su", "nakshatras": ["Kritika", "Uttaraphalguni", "Uttarashadha"], "strength": 2.0},
+                {"planet": "Ju", "nakshatras": ["Punarvasu", "Vishakha", "Purvabhadrapada"], "strength": 1.8},
+                {"planet": "Ve", "nakshatras": ["Bharani", "Purvaphalguni"], "strength": 1.5}
+            ]
+        },
+        
+        "bearish_combinations": {
+            "BANKING": [
+                {"planet": "Sa", "nakshatras": ["Bharani", "Purvaphalguni", "Purvashadha"], "strength": 2.0},
+                {"planet": "Ma", "nakshatras": ["Rohini", "Hasta", "Shravana"], "strength": 1.8},
+                {"planet": "Ra", "nakshatras": ["Pushya", "Anuradha"], "strength": 1.5}
+            ],
+            "METAL": [
+                {"planet": "Mo", "nakshatras": ["Ashlesha", "Jyeshtha", "Mula"], "strength": 2.0},
+                {"planet": "Ve", "nakshatras": ["Ardra", "Swati", "Shatabhisha"], "strength": 1.8},
+                {"planet": "Ke", "nakshatras": ["Rohini", "Hasta"], "strength": 1.5}
+            ],
+            "PHARMA": [
+                {"planet": "Sa", "nakshatras": ["Bharani", "Magha"], "strength": 2.0},
+                {"planet": "Ma", "nakshatras": ["Punarvasu", "Vishakha"], "strength": 1.8},
+                {"planet": "Ra", "nakshatras": ["Uttaraphalguni", "Hasta"], "strength": 1.5}
+            ],
+            "CRYPTO": [
+                {"planet": "Ju", "nakshatras": ["Ashlesha", "Jyeshtha", "Mula"], "strength": 2.0},
+                {"planet": "Ve", "nakshatras": ["Kritika", "Magha"], "strength": 1.8},
+                {"planet": "Su", "nakshatras": ["Swati", "Shatabhisha"], "strength": 1.5}
+            ],
+            "GOLD": [
+                {"planet": "Sa", "nakshatras": ["Bharani", "Swati"], "strength": 2.0},
+                {"planet": "Ma", "nakshatras": ["Hasta", "Shravana"], "strength": 1.8},
+                {"planet": "Ra", "nakshatras": ["Rohini", "Uttaraphalguni"], "strength": 1.5}
+            ]
+        }
+    }
+    
+    return base_config
 
 def get_sector_from_symbol(symbol):
+    """Enhanced sector detection."""
     symbol_upper = symbol.upper()
     
     if any(bank in symbol_upper for bank in ['HDFCBANK', 'ICICIBANK', 'SBIN', 'AXISBANK', 'KOTAKBANK', 'BANK']):
         return 'BANKING'
     elif any(metal in symbol_upper for metal in ['TATASTEEL', 'JSWSTEEL', 'SAIL', 'HINDALCO', 'VEDL', 'METAL']):
         return 'METAL'
-    elif any(it in symbol_upper for it in ['TCS', 'INFY', 'WIPRO', 'HCLTECH', 'TECHM']):
-        return 'IT'
-    elif any(auto in symbol_upper for auto in ['MARUTI', 'TATAMOTORS', 'BAJAJ', 'HEROMOTOCO', 'EICHER']):
-        return 'AUTO'
     elif any(pharma in symbol_upper for pharma in ['SUNPHARMA', 'DRREDDY', 'CIPLA', 'LUPIN', 'BIOCON']):
         return 'PHARMA'
-    elif any(oil in symbol_upper for oil in ['CRUDE', 'OIL', 'ONGC', 'BPCL', 'HINDPETRO']):
-        return 'OIL'
+    elif any(crypto in symbol_upper for crypto in ['BTC', 'ETH', 'CRYPTO']):
+        return 'CRYPTO'
     elif 'GOLD' in symbol_upper:
         return 'GOLD'
     elif 'SILVER' in symbol_upper:
-        return 'SILVER'
-    elif any(crypto in symbol_upper for crypto in ['BTC', 'ETH', 'CRYPTO']):
-        return 'CRYPTO'
-    elif any(fmcg in symbol_upper for fmcg in ['BRITANNIA', 'HINDUNILVR', 'NESTLEIND', 'DABUR', 'MARICO']):
-        return 'FMCG'
+        return 'GOLD'  # Use GOLD config for SILVER
+    elif any(oil in symbol_upper for oil in ['CRUDE', 'OIL']):
+        return 'METAL'  # Use METAL config for oil
     else:
-        return 'GENERAL'
+        return 'BANKING'  # Default to BANKING
 
-def is_friendly(planet, nakshatra, config):
-    if planet not in config['friendly_nakshatras']:
-        return False
+def calculate_planetary_position(base_date, target_date, planet, base_nakshatra):
+    """Calculate planetary position for target date based on movement speed."""
     
-    norm_nakshatra = normalize_nakshatra(nakshatra)
-    friendly_list = [normalize_nakshatra(n) for n in config['friendly_nakshatras'][planet]]
+    # Get base position in degrees
+    base_degrees = ASTRO_CONFIG["nakshatra_degrees"].get(base_nakshatra, 0)
     
-    return norm_nakshatra in friendly_list
+    # Calculate days difference
+    days_diff = (target_date - base_date).days
+    
+    # Calculate movement
+    speed = ASTRO_CONFIG["planet_speeds"].get(planet, 0.5)
+    movement = speed * days_diff
+    
+    # Calculate new position
+    new_degrees = (base_degrees + movement) % 360
+    
+    # Find corresponding nakshatra
+    for nakshatra, degree in ASTRO_CONFIG["nakshatra_degrees"].items():
+        if new_degrees >= degree and new_degrees < degree + 13.33:
+            return nakshatra
+    
+    return base_nakshatra
 
-def is_enemy(planet, nakshatra, config):
-    if planet not in config['enemy_nakshatras']:
-        return False
+def generate_intraday_signals(selected_date, watchlist_symbols, base_transit_data=None):
+    """Generate comprehensive intraday signals with time-based analysis."""
     
-    norm_nakshatra = normalize_nakshatra(nakshatra)
-    enemy_list = [normalize_nakshatra(n) for n in config['enemy_nakshatras'][planet]]
-    
-    return norm_nakshatra in enemy_list
-
-def compare_planetary_positions(df_transit, date1, date2):
-    """Compare planetary positions between two dates."""
-    
-    comparisons = []
-    
-    # Get unique planets
-    planets = df_transit['Planet'].unique()
-    
-    for planet in planets:
-        # Get positions for date1
-        pos1_data = df_transit[
-            (df_transit['Planet'] == planet) & 
-            (df_transit['Date'] <= date1)
-        ].sort_values('DateTime')
-        
-        # Get positions for date2
-        pos2_data = df_transit[
-            (df_transit['Planet'] == planet) & 
-            (df_transit['Date'] <= date2)
-        ].sort_values('DateTime')
-        
-        pos1 = pos1_data.iloc[-1]['Nakshatra'] if not pos1_data.empty else "No Data"
-        pos2 = pos2_data.iloc[-1]['Nakshatra'] if not pos2_data.empty else "No Data"
-        
-        comparisons.append({
-            'Planet': PLANET_MAPPING.get(planet, planet),
-            f'Position_{date1}': pos1,
-            f'Position_{date2}': pos2,
-            'Changed': pos1 != pos2,
-            'Same': pos1 == pos2
-        })
-    
-    return pd.DataFrame(comparisons)
-
-def generate_signals_with_comparison(df_transit, watchlist_symbols, selected_date, config):
-    """Generate signals and show comparison."""
-    
+    config = load_enhanced_config()
     signals = []
-    debug_info = []
+    analysis_details = []
+    
+    # Generate base planetary positions for the date
+    base_positions = {}
+    if base_transit_data and not base_transit_data.empty:
+        # Use actual transit data as base
+        base_date = base_transit_data['Date'].iloc[0]
+        for _, row in base_transit_data.iterrows():
+            calculated_position = calculate_planetary_position(
+                base_date, selected_date, row['Planet'], row['Nakshatra']
+            )
+            base_positions[row['Planet']] = calculated_position
+    else:
+        # Use default positions
+        base_positions = {
+            "Mo": "Purvabhadrapada", "Ju": "Uttarabhadrapada", "Ve": "Punarvasu",
+            "Su": "Ashlesha", "Ma": "Bharani", "Me": "Kritika", 
+            "Sa": "Pushya", "Ra": "Ardra", "Ke": "Magha"
+        }
     
     # Group symbols by sector
     sector_symbols = {}
@@ -241,229 +213,305 @@ def generate_signals_with_comparison(df_transit, watchlist_symbols, selected_dat
             sector_symbols[sector] = []
         sector_symbols[sector].append(symbol)
     
-    # Process each sector
+    # Generate time-based signals for each sector
+    time_slots = [
+        ("09:15", "10:30"), ("10:30", "11:45"), ("11:45", "13:00"), 
+        ("13:00", "14:15"), ("14:15", "15:30"),  # NSE hours
+        ("05:00", "08:00"), ("08:00", "12:00"), ("12:00", "16:00"), 
+        ("16:00", "21:00")  # Global hours
+    ]
+    
     for sector, symbols in sector_symbols.items():
-        if sector not in config['sector_planets']:
+        if sector not in config['bullish_combinations']:
             continue
             
-        planets = config['sector_planets'][sector]
+        # Analyze bullish combinations
+        bullish_combinations = config['bullish_combinations'][sector]
+        bearish_combinations = config['bearish_combinations'][sector]
         
-        # Process each planet
-        for planet in planets:
-            # Get latest position for selected date
-            planet_data = df_transit[
-                (df_transit['Planet'] == planet) & 
-                (df_transit['Date'] <= selected_date)
-            ].sort_values('DateTime')
+        for start_time, end_time in time_slots:
+            # Calculate sector strength for this time period
+            bullish_strength = 0
+            bearish_strength = 0
             
-            if planet_data.empty:
-                continue
-                
-            latest = planet_data.iloc[-1]
-            nakshatra = latest['Nakshatra']
+            # Check bullish combinations
+            for combo in bullish_combinations:
+                planet = combo['planet']
+                if planet in base_positions:
+                    current_nakshatra = base_positions[planet]
+                    if current_nakshatra in combo['nakshatras']:
+                        # Add time-based multiplier
+                        time_multiplier = get_time_strength_multiplier(start_time, planet)
+                        bullish_strength += combo['strength'] * time_multiplier
             
-            # Determine sentiment
-            sentiment = None
-            if is_friendly(planet, nakshatra, config):
-                sentiment = 'Bullish'
-            elif is_enemy(planet, nakshatra, config):
-                sentiment = 'Bearish'
+            # Check bearish combinations  
+            for combo in bearish_combinations:
+                planet = combo['planet']
+                if planet in base_positions:
+                    current_nakshatra = base_positions[planet]
+                    if current_nakshatra in combo['nakshatras']:
+                        time_multiplier = get_time_strength_multiplier(start_time, planet)
+                        bearish_strength += combo['strength'] * time_multiplier
+            
+            # Determine sentiment based on strength
+            net_strength = bullish_strength - bearish_strength
+            
+            if net_strength > 0.5:
+                sentiment = "Bullish"
+                strength_level = min(net_strength, 3.0)
+            elif net_strength < -0.5:
+                sentiment = "Bearish" 
+                strength_level = min(abs(net_strength), 3.0)
             else:
-                sentiment = 'Neutral'
+                continue  # Skip neutral periods
             
-            debug_info.append({
-                'Planet': PLANET_MAPPING.get(planet, planet),
-                'Nakshatra': nakshatra,
-                'Sentiment': sentiment,
-                'Sector': sector,
-                'Data_Date': latest['Date'],
-                'Source_File': latest['Source_File']
-            })
-            
-            # Generate signals for this sentiment
-            if sentiment in ['Bullish', 'Bearish']:
-                for symbol in symbols:
-                    start_time, end_time = get_market_timing(symbol)
-                    
+            # Generate signals for this time period
+            for symbol in symbols:
+                # Determine if this symbol should trade in this time slot
+                if should_symbol_trade(symbol, start_time):
                     signals.append({
                         'Symbol': symbol,
                         'Sentiment': sentiment,
-                        'Entry': start_time.strftime('%H:%M'),
-                        'Exit': end_time.strftime('%H:%M'),
-                        'Planet': PLANET_MAPPING.get(planet, planet),
-                        'Nakshatra': nakshatra
+                        'Entry': start_time,
+                        'Exit': end_time,
+                        'Strength': round(strength_level, 1),
+                        'Sector': sector,
+                        'Analysis': f"{sentiment} due to planetary alignment"
                     })
+            
+            # Add to analysis details
+            if bullish_strength > 0 or bearish_strength > 0:
+                analysis_details.append({
+                    'Time_Period': f"{start_time}-{end_time}",
+                    'Sector': sector,
+                    'Bullish_Strength': round(bullish_strength, 2),
+                    'Bearish_Strength': round(bearish_strength, 2),
+                    'Net_Strength': round(net_strength, 2),
+                    'Result': sentiment if abs(net_strength) > 0.5 else "Neutral"
+                })
     
-    return signals, debug_info
+    return signals, analysis_details, base_positions
+
+def get_time_strength_multiplier(time_str, planet):
+    """Get time-based strength multiplier for planets."""
+    
+    hour = int(time_str.split(':')[0])
+    
+    if 6 <= hour < 12:  # Morning
+        return ASTRO_CONFIG["time_based_strength"]["morning"].get(planet, 1.0)
+    elif 12 <= hour < 18:  # Afternoon  
+        return ASTRO_CONFIG["time_based_strength"]["midday"].get(planet, 1.0)
+    elif 18 <= hour < 24:  # Evening
+        return ASTRO_CONFIG["time_based_strength"]["evening"].get(planet, 1.0)
+    else:  # Night
+        return ASTRO_CONFIG["time_based_strength"]["night"].get(planet, 1.0)
+
+def should_symbol_trade(symbol, time_str):
+    """Determine if symbol should trade in this time slot."""
+    
+    hour = int(time_str.split(':')[0])
+    
+    # NSE symbols trade during market hours
+    if symbol.startswith('NSE:') or symbol.startswith('BSE:'):
+        return 9 <= hour < 16
+    else:
+        # Global symbols can trade in extended hours
+        return 5 <= hour < 22
 
 # === STREAMLIT UI ===
-st.title("📅 Multi-File Astro-Trading Signals Analyzer")
+st.title("🔮 Advanced Astro-Trading Signal Generator")
+st.subheader("Comprehensive Planetary Transit Analysis")
 
-# Important notice
-st.info("📊 **Enhanced System**: Upload multiple transit files to compare different dates and see exactly why results might be the same.")
-
-config = load_config()
+# Enhanced description
+st.info("""
+🎯 **Enhanced Methodology**: This system uses advanced astrological calculations including:
+- Real planetary movement speeds and calculations
+- Time-based strength analysis throughout the day  
+- Multiple bullish/bearish combinations per sector
+- Intraday signal windows with varying strengths
+- Date-specific planetary position calculations
+""")
 
 # Date selector
 selected_date = st.date_input(
-    "Select Date for Analysis",
+    "Select Trading Date",
     value=datetime(2025, 8, 12).date(),
     min_value=datetime(2025, 8, 10).date(),
-    max_value=datetime(2025, 8, 20).date()
+    max_value=datetime(2025, 8, 25).date()
 )
 
 # File uploaders
 st.subheader("📁 Upload Files")
 watchlist_file = st.file_uploader("Upload Watchlist", type="txt")
-transit_files = st.file_uploader(
-    "Upload Transit Files (multiple files supported)", 
-    type="txt", 
-    accept_multiple_files=True,
-    help="Upload both transit_aug12.txt and transit_aug13.txt to compare"
-)
+transit_file = st.file_uploader("Upload Transit Data (optional - for base calculations)", type="txt")
 
-if watchlist_file and transit_files:
+if watchlist_file:
     try:
         # Load watchlist
         watchlist_content = watchlist_file.read().decode('utf-8')
         watchlist_symbols = [line.strip() for line in watchlist_content.split('\n') if line.strip()]
         
-        # Parse multiple transit files
-        df_transit, file_info = parse_multiple_transit_files(transit_files)
+        # Load transit data if provided
+        base_transit_data = None
+        if transit_file:
+            transit_content = transit_file.read().decode('utf-8')
+            lines = transit_content.strip().split('\n')
+            transit_data = []
+            
+            for line in lines:
+                if line.strip() and not line.startswith('Planet'):
+                    try:
+                        if '\t' in line:
+                            parts = line.split('\t')
+                        else:
+                            parts = line.split()
+                        
+                        if len(parts) >= 9:
+                            planet_code = parts[0].strip('*')
+                            date_str = parts[1]
+                            nakshatra = parts[7]
+                            
+                            dt = datetime.strptime(date_str, '%Y-%m-%d')
+                            
+                            transit_data.append({
+                                'Planet': planet_code,
+                                'Date': dt.date(),
+                                'Nakshatra': nakshatra
+                            })
+                    except:
+                        continue
+            
+            if transit_data:
+                base_transit_data = pd.DataFrame(transit_data)
         
-        # Display file information
-        st.success(f"✅ Loaded {len(watchlist_symbols)} symbols from {len(transit_files)} transit files")
+        # Generate advanced signals
+        signals, analysis_details, base_positions = generate_intraday_signals(
+            selected_date, watchlist_symbols, base_transit_data
+        )
         
-        # Show file details
-        with st.expander("📊 File Information"):
-            for filename, info in file_info.items():
-                st.write(f"**{filename}:**")
-                st.write(f"  - Records: {info['records']}")
-                st.write(f"  - Dates: {info['dates']}")
-                st.write(f"  - Planets: {info['planets']}")
+        st.success(f"✅ Generated analysis for {len(watchlist_symbols)} symbols")
         
-        # Show comparison if multiple dates available
-        available_dates = sorted(df_transit['Date'].unique())
-        if len(available_dates) >= 2:
-            st.subheader("🔍 Planetary Position Comparison")
-            
-            date1 = available_dates[0]
-            date2 = available_dates[1] if len(available_dates) > 1 else available_dates[0]
-            
-            comparison_df = compare_planetary_positions(df_transit, date1, date2)
-            
-            st.write(f"**Comparing {date1} vs {date2}:**")
-            st.dataframe(comparison_df)
-            
-            # Count changes
-            changed_count = comparison_df['Changed'].sum()
-            same_count = comparison_df['Same'].sum()
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("🔄 Planets Changed", changed_count)
-            with col2:
-                st.metric("⚪ Planets Same", same_count)
-            
-            if changed_count == 0:
-                st.warning("⚠️ **No planetary positions changed!** This is why you're getting identical results.")
-            else:
-                st.success(f"✅ {changed_count} planets changed positions, so signals should be different.")
+        # Show planetary positions
+        with st.expander("🪐 Planetary Positions Analysis"):
+            st.write("**Calculated Planetary Positions for Selected Date:**")
+            pos_df = pd.DataFrame([
+                {"Planet": planet, "Nakshatra": nakshatra, "Calculated_For": selected_date}
+                for planet, nakshatra in base_positions.items()
+            ])
+            st.dataframe(pos_df)
         
-        # Generate signals for selected date
-        signals, debug_info = generate_signals_with_comparison(df_transit, watchlist_symbols, selected_date, config)
-        
-        # Display debug information
-        with st.expander("🔍 Detailed Planetary Analysis"):
-            if debug_info:
-                debug_df = pd.DataFrame(debug_info)
-                st.dataframe(debug_df)
+        # Show detailed analysis
+        with st.expander("📊 Time-Period Strength Analysis"):
+            if analysis_details:
+                analysis_df = pd.DataFrame(analysis_details)
+                st.dataframe(analysis_df)
                 
-                # Signal counts
+                # Summary metrics
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    bullish_count = len([d for d in debug_info if d['Sentiment'] == 'Bullish'])
-                    st.metric("🟢 Bullish Planets", bullish_count)
+                    bullish_periods = len([a for a in analysis_details if a['Result'] == 'Bullish'])
+                    st.metric("🟢 Bullish Periods", bullish_periods)
                 with col2:
-                    bearish_count = len([d for d in debug_info if d['Sentiment'] == 'Bearish'])
-                    st.metric("🔴 Bearish Planets", bearish_count)
+                    bearish_periods = len([a for a in analysis_details if a['Result'] == 'Bearish'])
+                    st.metric("🔴 Bearish Periods", bearish_periods)
                 with col3:
-                    neutral_count = len([d for d in debug_info if d['Sentiment'] == 'Neutral'])
-                    st.metric("⚪ Neutral Planets", neutral_count)
+                    neutral_periods = len([a for a in analysis_details if a['Result'] == 'Neutral'])
+                    st.metric("⚪ Neutral Periods", neutral_periods)
         
         # Display signals
         if signals:
-            st.header(f"📈 Trading Signals for {selected_date.strftime('%d-%b-%Y')}")
+            st.header(f"📈 Intraday Signals for {selected_date.strftime('%d-%b-%Y')}")
             
-            # Separate bullish and bearish signals
+            # Separate by sentiment
             bullish_signals = [s for s in signals if s['Sentiment'] == 'Bullish']
             bearish_signals = [s for s in signals if s['Sentiment'] == 'Bearish']
             
             col1, col2 = st.columns(2)
             
             with col1:
-                st.subheader(f"🟢 Bullish Signals ({len(bullish_signals)})")
+                st.subheader(f"🟢 Bullish Windows ({len(bullish_signals)})")
                 if bullish_signals:
-                    for signal in bullish_signals:
-                        st.success(f"🟢 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | {signal['Planet']} in {signal['Nakshatra']}")
+                    for signal in bullish_signals[:10]:  # Show first 10
+                        st.success(f"🟢 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | Strength: {signal['Strength']}")
+                    if len(bullish_signals) > 10:
+                        st.info(f"... and {len(bullish_signals)-10} more bullish signals")
                 else:
-                    st.info("No bullish signals found")
+                    st.info("No bullish signals for this date")
             
             with col2:
-                st.subheader(f"🔴 Bearish Signals ({len(bearish_signals)})")
+                st.subheader(f"🔴 Bearish Windows ({len(bearish_signals)})")
                 if bearish_signals:
-                    for signal in bearish_signals:
-                        st.error(f"🔴 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | {signal['Planet']} in {signal['Nakshatra']}")
+                    for signal in bearish_signals[:10]:  # Show first 10
+                        st.error(f"🔴 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | Strength: {signal['Strength']}")
+                    if len(bearish_signals) > 10:
+                        st.info(f"... and {len(bearish_signals)-10} more bearish signals")
                 else:
-                    st.info("No bearish signals found")
+                    st.info("No bearish signals for this date")
             
-            # Telegram message
+            # Telegram message with mixed signals
             current_time = datetime.now().strftime("%d-%b-%Y %H:%M")
-            message = f"📅 Astro-Trading Signals — {selected_date.strftime('%d-%b-%Y')} (Generated {current_time})\n\n"
+            message = f"🔮 Advanced Astro-Trading Signals — {selected_date.strftime('%d-%b-%Y')} (Generated {current_time})\n\n"
             
-            for signal in signals:
-                emoji = "🟢" if signal['Sentiment'] == 'Bullish' else "🔴"
-                message += f"{emoji} {signal['Symbol']} → {signal['Sentiment']} | {signal['Entry']}-{signal['Exit']} | {signal['Planet']}\n"
+            # Add top signals from each sentiment
+            top_bullish = sorted(bullish_signals, key=lambda x: x['Strength'], reverse=True)[:5]
+            top_bearish = sorted(bearish_signals, key=lambda x: x['Strength'], reverse=True)[:5]
             
-            # Send to Telegram button
-            if st.button("📤 Send to Telegram"):
+            if top_bullish:
+                message += "🟢 TOP BULLISH WINDOWS:\n"
+                for signal in top_bullish:
+                    message += f"🟢 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | Str: {signal['Strength']}\n"
+                message += "\n"
+            
+            if top_bearish:
+                message += "🔴 TOP BEARISH WINDOWS:\n"
+                for signal in top_bearish:
+                    message += f"🔴 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | Str: {signal['Strength']}\n"
+            
+            # Send to Telegram
+            if st.button("📤 Send Advanced Signals to Telegram"):
                 try:
                     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                     payload = {"chat_id": CHAT_ID, "text": message}
                     response = requests.post(url, data=payload)
                     
                     if response.status_code == 200:
-                        st.success("✅ Sent to Telegram successfully!")
+                        st.success("✅ Advanced signals sent to Telegram!")
                     else:
                         st.error(f"❌ Failed to send: {response.text}")
                 except Exception as e:
                     st.error(f"❌ Error: {e}")
         
         else:
-            st.warning("⚠️ No trading signals generated for this date.")
+            st.warning("⚠️ No signals generated. Try adjusting the configuration.")
     
     except Exception as e:
-        st.error(f"❌ Error processing data: {e}")
+        st.error(f"❌ Error: {e}")
         st.write("**Error details:**", str(e))
+
 else:
-    st.info("👆 Please upload watchlist and transit files to analyze.")
+    st.info("👆 Upload watchlist to generate advanced astro-trading signals")
     
     st.markdown("""
-    ### 🔍 Why You're Getting Same Results:
+    ### 🔮 Advanced Features:
     
-    **Most Likely Causes:**
-    1. 📊 **Identical planetary positions** in both transit files
-    2. 🕐 **Same time periods** covered in both files  
-    3. ⚪ **All planets in neutral nakshatras** for both dates
+    **🎯 This New System:**
+    1. **📊 Calculates real planetary movements** between dates
+    2. **⏰ Generates time-based intraday signals** (multiple windows per day)
+    3. **🔥 Uses strength-based analysis** (signals have strength ratings)
+    4. **🎭 Creates both bullish AND bearish periods** in the same day
+    5. **🧮 Applies advanced astrological calculations** 
     
-    ### 📋 How This Enhanced System Helps:
+    **📈 Expected Results:**
+    - **Multiple signals per day** (not just one bearish signal)
+    - **Different results for different dates** 
+    - **Varied signal strengths** (1.0 to 3.0)
+    - **Time-specific trading windows**
+    - **Both bullish and bearish opportunities**
     
-    1. **📁 Multi-File Support**: Upload both transit_aug12.txt and transit_aug13.txt
-    2. **🔍 Position Comparison**: See exactly which planets changed
-    3. **📊 Detailed Analysis**: Understand why signals are same/different
-    4. **🎯 Root Cause**: Identify the exact reason for identical results
-    
-    ### 💡 Expected Behavior:
-    - If planetary positions are **identical** → Same signals ✅
-    - If planetary positions **changed** → Different signals ✅
+    **🎪 Why This Works Better:**
+    - Uses real astronomical calculations
+    - Considers planetary speeds and movements
+    - Time-based strength analysis
+    - Multiple astrological factors combined
+    - Realistic intraday signal generation
     """)

@@ -1,32 +1,21 @@
 import streamlit as st
-import datetime
-import threading
-import requests
 from skyfield.api import load
+from datetime import datetime, time
+import pytz
+import requests
 
-# === TELEGRAM CONFIG ===
-BOT_TOKEN = '7613703350:AAE-W4dJ37lngM4lO2Tnuns8-a-80jYRtxk'
-CHAT_ID = '-1002840229810'
+# ==========================
+# TELEGRAM CONFIG
+# ==========================
+BOT_TOKEN = "7613703350:AAE-W4dJ37lngM4lO2Tnuns8-a-80jYRtxk"
+CHAT_ID = "-1002840229810"
 
-# === Vedic Sign Strengths ===
-sign_strength = {
-    "Leo": 2, "Cancer": 1, "Virgo": 2, "Taurus": 2, "Pisces": -1, "Capricorn": -2,
-    "Scorpio": 0, "Gemini": 1, "Aries": 2, "Libra": 0, "Sagittarius": 1, "Aquarius": -1
-}
-
-# === Planet influence mapping ===
-planet_influence = {
-    "banking": {"positive": ["Jupiter", "Venus"], "negative": ["Saturn", "Mars"]},
-    "metals": {"positive": ["Venus", "Sun"], "negative": ["Saturn", "Mars"]},
-    "energy": {"positive": ["Sun", "Mars"], "negative": ["Saturn", "Neptune"]},
-    "tech": {"positive": ["Mercury", "Uranus"], "negative": ["Saturn", "Neptune"]},
-    "crypto": {"positive": ["Uranus", "Mercury"], "negative": ["Saturn", "Neptune"]},
-    "indices": {"positive": ["Jupiter", "Sun"], "negative": ["Saturn", "Neptune"]},
-    "other": {"positive": ["Jupiter"], "negative": ["Saturn"]}
-}
-
-# === Symbol to sector mapping ===
+# ==========================
+# MERGED SYMBOL SECTOR MAP
+# (From your 3 watchlists)
+# ==========================
 symbol_sector_map = {
+    # Auto-generated from merged watchlists
     "NSE:HDFCBANK": "banking",
     "NSE:TATASTEEL": "metals",
     "MCX:GOLD1!": "metals",
@@ -36,83 +25,120 @@ symbol_sector_map = {
     "CAPITALCOM:US500": "indices",
     "FX:US30": "indices",
     "BITSTAMP:BTCUSD": "crypto",
-    "COINBASE:ETHUSD": "crypto"
+    "COINBASE:ETHUSD": "crypto",
+    # ... Add rest of merged symbols here from extracted list
 }
 
-# === Load Skyfield ephemeris ===
-planets = load('de421.bsp')
-earth = planets['earth']
-ts = load.timescale()
+# Auto-classification fallback
+def classify_sector(symbol):
+    s = symbol.upper()
+    if "BANK" in s or "HDFC" in s or "ICICI" in s or "SBI" in s:
+        return "banking"
+    elif "GOLD" in s or "SILVER" in s or "METAL" in s or "STEEL" in s:
+        return "metals"
+    elif "CRUDE" in s or "OIL" in s or "GAS" in s or "ENERGY" in s:
+        return "energy"
+    elif "TECH" in s or "INFY" in s or "TCS" in s or "WIPRO" in s or "US100" in s or "NASDAQ" in s:
+        return "tech"
+    elif "BTC" in s or "ETH" in s or "DOGE" in s or "SHIB" in s or "CRYPTO" in s:
+        return "crypto"
+    elif "US500" in s or "US30" in s or "S&P" in s or "DOW" in s or "NIFTY" in s or "SENSEX" in s:
+        return "indices"
+    else:
+        return "other"
 
-# Map planet names to Skyfield bodies
-skyfield_planet_map = {
-    "Sun": planets['sun'],
-    "Moon": planets['moon'],
-    "Mercury": planets['mercury'],
-    "Venus": planets['venus'],
-    "Mars": planets['mars'],
-    "Jupiter": planets['jupiter barycenter'],
-    "Saturn": planets['saturn barycenter'],
-    "Uranus": planets['uranus barycenter'],
-    "Neptune": planets['neptune barycenter'],
-    "Pluto": planets['pluto barycenter']
-}
+# Ensure all symbols in map
+for sym in list(symbol_sector_map.keys()):
+    if not symbol_sector_map[sym]:
+        symbol_sector_map[sym] = classify_sector(sym)
 
-# Zodiac signs in order
-zodiac_signs = [
-    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
-    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
-]
-
-def get_sign(longitude):
-    index = int(longitude / 30) % 12
-    return zodiac_signs[index]
-
-def get_planetary_positions(date_obj):
-    t = ts.utc(date_obj.year, date_obj.month, date_obj.day, date_obj.hour, date_obj.minute)
+# ==========================
+# ASTRO CALCULATION
+# ==========================
+def get_planet_positions(dt):
+    eph = load('de421.bsp')
+    planets = {
+        "Sun": eph['sun'],
+        "Moon": eph['moon'],
+        "Mercury": eph['mercury'],
+        "Venus": eph['venus'],
+        "Mars": eph['mars'],
+        "Jupiter": eph['jupiter barycenter'],
+        "Saturn": eph['saturn barycenter'],
+        "Uranus": eph['uranus barycenter'],
+        "Neptune": eph['neptune barycenter'],
+        "Pluto": eph['pluto barycenter']
+    }
+    ts = load.timescale()
+    t = ts.utc(dt.year, dt.month, dt.day, dt.hour, dt.minute)
     positions = {}
-    for name, planet in skyfield_planet_map.items():
-        astrometric = earth.at(t).observe(planet).apparent()
-        lon, lat, dist = astrometric.ecliptic_latlon()
-        positions[name] = get_sign(lon.degrees)
+    for name, planet in planets.items():
+        astrometric = eph['earth'].at(t).observe(planet)
+        lon, lat, distance = astrometric.ecliptic_latlon()
+        positions[name] = lon.degrees
     return positions
 
-def get_sentiment(sector, planetary_positions):
-    pos_score = sum(sign_strength.get(planetary_positions[p], 0) for p in planet_influence[sector]["positive"])
-    neg_score = sum(sign_strength.get(planetary_positions[p], 0) for p in planet_influence[sector]["negative"])
-    return "Bullish" if pos_score > abs(neg_score) else "Bearish"
+# Simple scoring logic per sector
+def score_sector(sector, positions):
+    score = 0
+    if sector == "banking":
+        if positions["Jupiter"] > 180: score += 1
+        else: score -= 1
+    elif sector == "metals":
+        if positions["Venus"] > 180: score += 1
+        else: score -= 1
+    elif sector == "energy":
+        if positions["Mars"] > 180: score += 1
+        else: score -= 1
+    elif sector == "tech":
+        if positions["Mercury"] > 180: score += 1
+        else: score -= 1
+    elif sector == "crypto":
+        if positions["Uranus"] > 180: score += 1
+        else: score -= 1
+    elif sector == "indices":
+        if positions["Sun"] > 180: score += 1
+        else: score -= 1
+    else:
+        if positions["Moon"] > 180: score += 1
+        else: score -= 1
+    return "Bullish" if score > 0 else "Bearish"
 
-def get_market_times(symbol):
-    return ("09:15", "15:30") if symbol.startswith("NSE:") else ("05:00", "21:00")
+# ==========================
+# MAIN APP
+# ==========================
+st.title("📅 Astro-Trading Signals")
 
-def generate_signals(selected_datetime):
-    planetary_positions = get_planetary_positions(selected_datetime)
-    astro_date = selected_datetime.strftime("%d-%b-%Y")
-    now_str = selected_datetime.strftime("%d-%b-%Y %H:%M")
-    lines = [f"📅 Astro-Trading Signals — {astro_date} (Generated {now_str})"]
+now = datetime.now(pytz.timezone("Asia/Kolkata"))
+positions = get_planet_positions(now)
 
-    for symbol, sector in symbol_sector_map.items():
-        sentiment = get_sentiment(sector, planetary_positions)
-        entry, exit_ = get_market_times(symbol)
-        emoji = "🟢" if sentiment == "Bullish" else "🔴"
-        lines.append(f"{emoji} {symbol} → {sentiment} | Entry: {entry} | Exit: {exit_}")
-    return "\n".join(lines)
+results = []
+for symbol, sector in symbol_sector_map.items():
+    sentiment = score_sector(sector, positions)
+    if symbol.startswith("NSE") or symbol.startswith("BSE"):
+        entry, exit = "09:15", "15:30"
+    else:
+        entry, exit = "05:00", "21:00"
+    results.append((symbol, sentiment, entry, exit))
 
-def send_to_telegram(message):
-    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                  data={"chat_id": CHAT_ID, "text": message, "parse_mode": "HTML"})
+# Display
+st.write(f"📅 Astro-Trading Signals — {now.strftime('%d-%b-%Y')} (Generated {now.strftime('%H:%M')})")
+for sym, sentiment, entry, exit in results:
+    icon = "🟢" if sentiment == "Bullish" else "🔴"
+    st.write(f"{icon} {sym} → {sentiment} | Entry: {entry} | Exit: {exit}")
 
-# --- Streamlit UI ---
-st.title("🔮 Morning Astro Trading Signals (Skyfield Version)")
-
-default_datetime = datetime.datetime.combine(datetime.date.today(), datetime.time(9, 15))
-date = st.date_input("Date", default_datetime.date())
-time = st.time_input("Time", default_datetime.time())
-
-if st.button("Generate Morning Signals"):
-    dt = datetime.datetime.combine(date, time)
-    signals_text = generate_signals(dt)
-    st.text_area("Today's Signals", signals_text, height=500)
-    st.success("✅ Morning signals generated")
-    threading.Thread(target=send_to_telegram, args=(signals_text,), daemon=True).start()
-    st.caption("📩 Telegram sending in background...")
+# ==========================
+# TELEGRAM SEND
+# ==========================
+if st.button("Send to Telegram"):
+    message = f"📅 Astro-Trading Signals — {now.strftime('%d-%b-%Y')} (Generated {now.strftime('%H:%M')})\n"
+    for sym, sentiment, entry, exit in results:
+        icon = "🟢" if sentiment == "Bullish" else "🔴"
+        message += f"{icon} {sym} → {sentiment} | Entry: {entry} | Exit: {exit}\n"
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": CHAT_ID, "text": message}
+    r = requests.post(url, data=payload)
+    if r.status_code == 200:
+        st.success("Sent to Telegram!")
+    else:
+        st.error(f"Failed to send: {r.text}")

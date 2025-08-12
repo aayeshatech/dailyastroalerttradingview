@@ -5,6 +5,11 @@ import schedule
 import time
 import csv
 from pathlib import Path
+from flatlib.chart import Chart
+from flatlib.datetime import Datetime
+from flatlib.geopos import GeoPos
+from flatlib import const
+
 
 # === TELEGRAM BOT CONFIGURATION ===
 BOT_TOKEN = '7613703350:AAE-W4dJ37lngM4lO2Tnuns8-a-80jYRtxk'
@@ -58,27 +63,31 @@ symbol_sector_map = {
 
 # === Swiss Ephemeris Planetary Position Calculation ===
 def get_planetary_positions(date_obj):
-    swe.set_ephe_path('.')  # Path to ephemeris files
-    jd = swe.julday(date_obj.year, date_obj.month, date_obj.day,
-                    date_obj.hour + date_obj.minute/60)
+    date_str = date_obj.strftime("%Y/%m/%d")
+    time_str = date_obj.strftime("%H:%M")
+    # Geo position can be any fixed point, e.g., Greenwich
+    pos = GeoPos("51.48", "0.0")
+    dt = Datetime(date_str, time_str, "+00:00")
+    chart = Chart(dt, pos)
 
     planet_map = {
-        "Sun": swe.SUN,
-        "Moon": swe.MOON,
-        "Mercury": swe.MERCURY,
-        "Venus": swe.VENUS,
-        "Mars": swe.MARS,
-        "Jupiter": swe.JUPITER,
-        "Saturn": swe.SATURN,
-        "Uranus": swe.URANUS,
-        "Neptune": swe.NEPTUNE,
-        "Pluto": swe.PLUTO
+        "Sun": const.SUN,
+        "Moon": const.MOON,
+        "Mercury": const.MERCURY,
+        "Venus": const.VENUS,
+        "Mars": const.MARS,
+        "Jupiter": const.JUPITER,
+        "Saturn": const.SATURN,
+        "Uranus": const.URANUS,
+        "Neptune": const.NEPTUNE,
+        "Pluto": const.PLUTO
     }
 
-    signs = [
-        "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
-        "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
-    ]
+    positions = {}
+    for name, pl_code in planet_map.items():
+        pl = chart.get(pl_code)
+        positions[name] = pl.sign
+    return positions
 
     positions = {}
     for name, pl_code in planet_map.items():

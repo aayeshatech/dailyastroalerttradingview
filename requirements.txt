@@ -1,3 +1,3 @@
+streamlit
 flatlib
 requests
-streamlit

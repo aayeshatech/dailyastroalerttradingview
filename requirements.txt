@@ -1,1 +1,3 @@
-pyswisseph
+flatlib
+schedule
+requests

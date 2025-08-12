@@ -1,14 +1,162 @@
 {
-  "sectors": {
-    "BANKING": ["Jupiter", "Venus"],
-    "PHARMA": ["Sun", "Mars"]
+  "sector_planets": {
+    "BANKING": ["Ju", "Ve", "Me"],
+    "METAL": ["Ma", "Sa", "Su"],
+    "PHARMA": ["Mo", "Me", "Ju"],
+    "AUTO": ["Ma", "Sa", "Ra"],
+    "IT": ["Me", "Ju", "Sa"],
+    "FMCG": ["Ve", "Mo", "Ju"],
+    "OIL": ["Ma", "Sa", "Su"],
+    "CRYPTO": ["Ra", "Ke", "Sa"],
+    "GOLD": ["Su", "Ju", "Ve"],
+    "SILVER": ["Mo", "Ve", "Me"],
+    "GENERAL": ["Su", "Mo", "Ma", "Me", "Ju", "Ve", "Sa"]
   },
   "friendly_nakshatras": {
-    "Jupiter": ["Punarvasu", "Vishakha", "Purva Bhadrapada"],
-    "Venus": ["Bharani", "Purva Phalguni", "Purva Ashadha"]
+    "Mo": [
+      "Rohini",
+      "Hasta", 
+      "Shravana",
+      "Purvabhadrapada",
+      "Mrigashirsha",
+      "Chitra",
+      "Punarvasu"
+    ],
+    "Ma": [
+      "Mrigashirsha",
+      "Chitra", 
+      "Dhanishta",
+      "Bharani",
+      "Magha",
+      "Uttarabhadrapada"
+    ],
+    "Me": [
+      "Ashlesha",
+      "Jyeshtha",
+      "Revati",
+      "Hasta",
+      "Punarvasu",
+      "Uttarabhadrapada"
+    ],
+    "Ju": [
+      "Punarvasu",
+      "Vishakha",
+      "Purvabhadrapada", 
+      "Pushya",
+      "Anuradha",
+      "Uttarabhadrapada"
+    ],
+    "Ve": [
+      "Bharani",
+      "Purvaphalguni",
+      "Purvashadha",
+      "Rohini",
+      "Swati",
+      "Purvabhadrapada"
+    ],
+    "Sa": [
+      "Pushya",
+      "Anuradha",
+      "Uttarabhadrapada",
+      "Punarvasu", 
+      "Uttarashadha",
+      "Purvabhadrapada"
+    ],
+    "Ra": [
+      "Ardra",
+      "Swati",
+      "Shatabhisha",
+      "Ashlesha",
+      "Magha",
+      "Uttarabhadrapada"
+    ],
+    "Ke": [
+      "Ashwini",
+      "Magha",
+      "Mula",
+      "Bharani",
+      "Kritika",
+      "Purvabhadrapada"
+    ],
+    "Su": [
+      "Kritika",
+      "Uttaraphalguni", 
+      "Uttarashadha",
+      "Bharani",
+      "Magha",
+      "Punarvasu"
+    ]
   },
   "enemy_nakshatras": {
-    "Jupiter": ["Ashlesha", "Jyeshtha"],
-    "Venus": ["Krittika", "Magha"]
+    "Mo": [
+      "Ashlesha",
+      "Jyeshtha",
+      "Mula",
+      "Bharani",
+      "Magha",
+      "Kritika"
+    ],
+    "Ma": [
+      "Rohini",
+      "Hasta", 
+      "Shravana",
+      "Pushya",
+      "Anuradha",
+      "Punarvasu"
+    ],
+    "Me": [
+      "Kritika",
+      "Uttaraphalguni",
+      "Uttarashadha", 
+      "Mrigashirsha",
+      "Chitra",
+      "Purvabhadrapada"
+    ],
+    "Ju": [
+      "Ashlesha",
+      "Jyeshtha",
+      "Mula",
+      "Kritika",
+      "Magha"
+    ],
+    "Ve": [
+      "Ardra",
+      "Swati",
+      "Shatabhisha",
+      "Ashlesha", 
+      "Jyeshtha",
+      "Uttarabhadrapada"
+    ],
+    "Sa": [
+      "Bharani",
+      "Purvaphalguni",
+      "Purvashadha",
+      "Rohini",
+      "Swati"
+    ],
+    "Ra": [
+      "Rohini",
+      "Hasta",
+      "Shravana",
+      "Pushya",
+      "Uttaraphalguni",
+      "Purvabhadrapada"
+    ],
+    "Ke": [
+      "Rohini",
+      "Hasta", 
+      "Shravana",
+      "Punarvasu",
+      "Vishakha",
+      "Uttarabhadrapada"
+    ],
+    "Su": [
+      "Ashlesha",
+      "Jyeshtha",
+      "Shatabhisha",
+      "Swati",
+      "Revati",
+      "Purvabhadrapada"
+    ]
   }
 }

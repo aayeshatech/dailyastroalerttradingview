@@ -1,11 +1,8 @@
 import streamlit as st
 import datetime
-import requests
 import threading
-from flatlib.chart import Chart
-from flatlib.datetime import Datetime
-from flatlib.geopos import GeoPos
-from flatlib import const
+import requests
+from skyfield.api import load
 
 # === TELEGRAM CONFIG ===
 BOT_TOKEN = '7613703350:AAE-W4dJ37lngM4lO2Tnuns8-a-80jYRtxk'
@@ -17,7 +14,7 @@ sign_strength = {
     "Scorpio": 0, "Gemini": 1, "Aries": 2, "Libra": 0, "Sagittarius": 1, "Aquarius": -1
 }
 
-# === Sector → Planets ===
+# === Planet influence mapping ===
 planet_influence = {
     "banking": {"positive": ["Jupiter", "Venus"], "negative": ["Saturn", "Mars"]},
     "metals": {"positive": ["Venus", "Sun"], "negative": ["Saturn", "Mars"]},
@@ -28,31 +25,58 @@ planet_influence = {
     "other": {"positive": ["Jupiter"], "negative": ["Saturn"]}
 }
 
-# === Symbol → Sector ===
+# === Symbol to sector mapping ===
 symbol_sector_map = {
-    "AMEX:DIA": "indices", "AMEX:FXE": "indices", "AMEX:GLD": "metals", "AMEX:SPY": "indices",
-    "BINANCE:LTCUSD": "crypto", "BIST:XAGUSD1!": "metals", "BITSTAMP:BTCUSD": "crypto",
-    "BITSTAMP:ETHUSD": "crypto", "BSE:DECNGOLD": "metals", "BSE:ARFIN": "banking",
-    "BSE:M_MFIN": "banking", "BSE:SGFIN": "banking", "BSE:TITANSEC": "tech", "BSE:VERITAS": "tech",
-    "CFI:US100": "tech", "CAPITALCOM:US500": "indices", "FX:US30": "indices", "MCX:GOLD1!": "metals",
-    "MCX:SILVER1!": "metals", "MCX:CRUDEOIL1!": "energy", "NSE:HDFCBANK": "banking",
-    "NSE:ICICIBANK": "banking", "NSE:TATASTEEL": "metals", "NSE:RELIANCE": "energy",
+    "NSE:HDFCBANK": "banking",
+    "NSE:TATASTEEL": "metals",
+    "MCX:GOLD1!": "metals",
+    "MCX:SILVER1!": "metals",
+    "MCX:CRUDEOIL1!": "energy",
+    "CFI:US100": "tech",
+    "CAPITALCOM:US500": "indices",
+    "FX:US30": "indices",
+    "BITSTAMP:BTCUSD": "crypto",
     "COINBASE:ETHUSD": "crypto"
 }
 
-# === Calculate planetary positions ===
-def get_planetary_positions(date_obj):
-    pos = GeoPos("51.48", "0.0")  # Greenwich
-    dt = Datetime(date_obj.strftime("%Y/%m/%d"), date_obj.strftime("%H:%M"), "+00:00")
-    chart = Chart(dt, pos)
-    planet_map = {
-        "Sun": const.SUN, "Moon": const.MOON, "Mercury": const.MERCURY, "Venus": const.VENUS,
-        "Mars": const.MARS, "Jupiter": const.JUPITER, "Saturn": const.SATURN,
-        "Uranus": const.URANUS, "Neptune": const.NEPTUNE, "Pluto": const.PLUTO
-    }
-    return {name: chart.get(code).sign for name, code in planet_map.items()}
+# === Load Skyfield ephemeris ===
+planets = load('de421.bsp')
+earth = planets['earth']
+ts = load.timescale()
 
-# === Determine Bullish/Bearish ===
+# Map planet names to Skyfield bodies
+skyfield_planet_map = {
+    "Sun": planets['sun'],
+    "Moon": planets['moon'],
+    "Mercury": planets['mercury'],
+    "Venus": planets['venus'],
+    "Mars": planets['mars'],
+    "Jupiter": planets['jupiter barycenter'],
+    "Saturn": planets['saturn barycenter'],
+    "Uranus": planets['uranus barycenter'],
+    "Neptune": planets['neptune barycenter'],
+    "Pluto": planets['pluto barycenter']
+}
+
+# Zodiac signs in order
+zodiac_signs = [
+    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
+]
+
+def get_sign(longitude):
+    index = int(longitude / 30) % 12
+    return zodiac_signs[index]
+
+def get_planetary_positions(date_obj):
+    t = ts.utc(date_obj.year, date_obj.month, date_obj.day, date_obj.hour, date_obj.minute)
+    positions = {}
+    for name, planet in skyfield_planet_map.items():
+        astrometric = earth.at(t).observe(planet).apparent()
+        lon, lat, dist = astrometric.ecliptic_latlon()
+        positions[name] = get_sign(lon.degrees)
+    return positions
+
 def get_sentiment(sector, planetary_positions):
     pos_score = sum(sign_strength.get(planetary_positions[p], 0) for p in planet_influence[sector]["positive"])
     neg_score = sum(sign_strength.get(planetary_positions[p], 0) for p in planet_influence[sector]["negative"])
@@ -61,7 +85,6 @@ def get_sentiment(sector, planetary_positions):
 def get_market_times(symbol):
     return ("09:15", "15:30") if symbol.startswith("NSE:") else ("05:00", "21:00")
 
-# === Generate signals ===
 def generate_signals(selected_datetime):
     planetary_positions = get_planetary_positions(selected_datetime)
     astro_date = selected_datetime.strftime("%d-%b-%Y")
@@ -75,15 +98,13 @@ def generate_signals(selected_datetime):
         lines.append(f"{emoji} {symbol} → {sentiment} | Entry: {entry} | Exit: {exit_}")
     return "\n".join(lines)
 
-# === Telegram send ===
 def send_to_telegram(message):
     requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                   data={"chat_id": CHAT_ID, "text": message, "parse_mode": "HTML"})
 
 # --- Streamlit UI ---
-st.title("🔮 Morning Astro Trading Signals")
+st.title("🔮 Morning Astro Trading Signals (Skyfield Version)")
 
-# Defaults to today's date at 09:15
 default_datetime = datetime.datetime.combine(datetime.date.today(), datetime.time(9, 15))
 date = st.date_input("Date", default_datetime.date())
 time = st.time_input("Time", default_datetime.time())

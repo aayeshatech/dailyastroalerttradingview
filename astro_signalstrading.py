@@ -15,7 +15,7 @@ NSE_END = time(15, 30)
 GLOBAL_START = time(5, 0)
 GLOBAL_END = time(21, 0)
 
-# === DEFAULT CONFIG (if config.json is missing) ===
+# === DEFAULT CONFIG ===
 DEFAULT_CONFIG = {
     "sector_planets": {
         "BANKING": ["Ju", "Ve", "Me"],
@@ -30,7 +30,7 @@ DEFAULT_CONFIG = {
         "SILVER": ["Mo", "Ve", "Me"]
     },
     "friendly_nakshatras": {
-        "Mo": ["Rohini", "Hasta", "Shravana", "Mrigashirsha", "Chitra"],
+        "Mo": ["Rohini", "Hasta", "Shravana", "Purvabhadrapada", "Mrigashirsha"],
         "Ma": ["Mrigashirsha", "Chitra", "Dhanishta", "Bharani", "Magha"],
         "Me": ["Ashlesha", "Jyeshtha", "Revati", "Hasta", "Punarvasu"],
         "Ju": ["Punarvasu", "Vishakha", "Purvabhadrapada", "Pushya", "Anuradha"],
@@ -53,99 +53,80 @@ DEFAULT_CONFIG = {
     }
 }
 
-# === PLANET MAPPING ===
 PLANET_MAPPING = {
-    "Mo": "Moon",
-    "Ma": "Mars", 
-    "Me": "Mercury",
-    "Ju": "Jupiter",
-    "Ve": "Venus",
-    "Sa": "Saturn",
-    "Ra": "Rahu",
-    "Ke": "Ketu",
-    "Su": "Sun"
+    "Mo": "Moon", "Ma": "Mars", "Me": "Mercury", "Ju": "Jupiter",
+    "Ve": "Venus", "Sa": "Saturn", "Ra": "Rahu", "Ke": "Ketu", "Su": "Sun"
 }
 
 def load_config():
-    """Load configuration from file or use default."""
     try:
         with open("config.json") as f:
-            config = json.load(f)
-        return config
+            return json.load(f)
     except:
         st.warning("⚠️ config.json not found. Using default configuration.")
         return DEFAULT_CONFIG
 
 def normalize_nakshatra(name):
     """Normalize nakshatra names for matching."""
-    # Common variations mapping
-    nakshatra_variations = {
-        "purvabhadrapada": ["purvabhadrapada", "purva bhadrapada", "p.bhadrapada"],
-        "uttarabhadrapada": ["uttarabhadrapada", "uttara bhadrapada", "u.bhadrapada"],
-        "purvashadha": ["purvashadha", "purva ashadha", "p.ashadha"],
-        "uttarashadha": ["uttarashadha", "uttara ashadha", "u.ashadha"],
-        "purvaphalguni": ["purvaphalguni", "purva phalguni", "p.phalguni"],
-        "uttaraphalguni": ["uttaraphalguni", "uttara phalguni", "u.phalguni"],
-        "ashlesha": ["ashlesha", "aslesha"],
-        "mrigashirsha": ["mrigashirsha", "mrigasira", "mrugasira"],
-        "ardra": ["ardra", "arudra"],
-        "punarvasu": ["punarvasu", "punarpoosam"],
-        "ashwini": ["ashwini", "aswini"],
-        "kritika": ["kritika", "krittika"],
-        "bharani": ["bharani"],
-        "rohini": ["rohini"],
-        "pushya": ["pushya", "poosam"],
-        "magha": ["magha"],
-        "chitra": ["chitra", "chithra"],
-        "swati": ["swati"],
-        "vishakha": ["vishakha", "visakha"],
-        "anuradha": ["anuradha"],
-        "jyeshtha": ["jyeshtha", "jyesta"],
-        "mula": ["mula", "moola"],
-        "dhanishta": ["dhanishta", "dhanishtha"],
-        "shatabhisha": ["shatabhisha", "satabhisha"],
-        "revati": ["revati"],
-        "hasta": ["hasta"],
-        "shravana": ["shravana", "sravana"]
+    nakshatra_map = {
+        "purvabhadrapada": "purvabhadrapada",
+        "uttarabhadrapada": "uttarabhadrapada", 
+        "purvashadha": "purvashadha",
+        "uttarashadha": "uttarashadha",
+        "purvaphalguni": "purvaphalguni",
+        "uttaraphalguni": "uttaraphalguni",
+        "ashlesha": "ashlesha",
+        "mrigashirsha": "mrigashirsha",
+        "punarvasu": "punarvasu"
     }
     
     normalized = name.strip().lower().replace(" ", "").replace("-", "")
-    
-    # Find the standard name
-    for standard, variations in nakshatra_variations.items():
-        if normalized in [v.replace(" ", "").replace("-", "") for v in variations]:
-            return standard
-    
-    return normalized
+    return nakshatra_map.get(normalized, normalized)
 
 def parse_transit_data(transit_text):
-    """Parse the transit data format."""
+    """Parse the planetary transit data."""
     lines = transit_text.strip().split('\n')
     data = []
     
-    for line in lines[1:]:  # Skip header
-        if line.strip():
-            parts = line.split('\t')
-            if len(parts) >= 9:
-                try:
+    st.write("**🔍 Parsing Transit Data:**")
+    
+    for i, line in enumerate(lines):
+        if line.strip() and not line.startswith('Planet'):
+            try:
+                # Split by multiple delimiters
+                if '\t' in line:
+                    parts = line.split('\t')
+                else:
+                    parts = line.split()
+                
+                if len(parts) >= 9:
                     planet_code = parts[0].strip('*')
-                    date_time = parts[1] + ' ' + parts[2]
+                    date_str = parts[1]
+                    time_str = parts[2]
                     nakshatra = parts[7]
                     
-                    # Convert datetime
-                    dt = datetime.strptime(date_time, '%Y-%m-%d %H:%M:%S')
+                    # Parse date and time
+                    dt = datetime.strptime(f"{date_str} {time_str}", '%Y-%m-%d %H:%M:%S')
                     
                     data.append({
                         'Planet': planet_code,
                         'DateTime': dt,
+                        'Date': dt.date(),
                         'Time': dt.strftime('%H:%M:%S'),
                         'Nakshatra': nakshatra,
-                        'Date': dt.date()
+                        'Raw_Line': line[:50] + "..." if len(line) > 50 else line
                     })
-                except:
-                    continue
+                    
+                    if i < 5:  # Show first 5 entries for debugging
+                        st.write(f"✅ Parsed: {planet_code} on {dt.date()} at {dt.time()} in {nakshatra}")
+                        
+            except Exception as e:
+                if i < 5:
+                    st.write(f"❌ Failed to parse line {i}: {line[:30]}... Error: {e}")
+                continue
     
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    return df
 
 def get_market_timing(symbol):
     """Get market timing based on symbol."""
@@ -153,6 +134,33 @@ def get_market_timing(symbol):
         return NSE_START, NSE_END
     else:
         return GLOBAL_START, GLOBAL_END
+
+def get_sector_from_symbol(symbol):
+    """Extract sector from symbol."""
+    symbol_upper = symbol.upper()
+    
+    if any(bank in symbol_upper for bank in ['HDFCBANK', 'ICICIBANK', 'SBIN', 'AXISBANK', 'KOTAKBANK', 'BANK']):
+        return 'BANKING'
+    elif any(metal in symbol_upper for metal in ['TATASTEEL', 'JSWSTEEL', 'SAIL', 'HINDALCO', 'VEDL', 'METAL']):
+        return 'METAL'
+    elif any(it in symbol_upper for it in ['TCS', 'INFY', 'WIPRO', 'HCLTECH', 'TECHM']):
+        return 'IT'
+    elif any(auto in symbol_upper for auto in ['MARUTI', 'TATAMOTORS', 'BAJAJ', 'HEROMOTOCO', 'EICHER']):
+        return 'AUTO'
+    elif any(pharma in symbol_upper for pharma in ['SUNPHARMA', 'DRREDDY', 'CIPLA', 'LUPIN', 'BIOCON']):
+        return 'PHARMA'
+    elif any(oil in symbol_upper for oil in ['CRUDE', 'OIL', 'ONGC', 'BPCL', 'HINDPETRO']):
+        return 'OIL'
+    elif 'GOLD' in symbol_upper:
+        return 'GOLD'
+    elif 'SILVER' in symbol_upper:
+        return 'SILVER'
+    elif any(crypto in symbol_upper for crypto in ['BTC', 'ETH', 'CRYPTO']):
+        return 'CRYPTO'
+    elif any(fmcg in symbol_upper for fmcg in ['BRITANNIA', 'HINDUNILVR', 'NESTLEIND', 'DABUR', 'MARICO']):
+        return 'FMCG'
+    else:
+        return 'GENERAL'
 
 def is_friendly(planet, nakshatra, config):
     """Check if planet-nakshatra combination is friendly."""
@@ -174,54 +182,38 @@ def is_enemy(planet, nakshatra, config):
     
     return norm_nakshatra in enemy_list
 
-def get_sector_from_symbol(symbol):
-    """Extract sector from symbol."""
-    symbol_upper = symbol.upper()
+def get_latest_position_for_date(df_transit, planet, target_date):
+    """Get the latest planetary position for a specific date."""
     
-    # Banking
-    if any(bank in symbol_upper for bank in ['HDFCBANK', 'ICICIBANK', 'SBIN', 'AXISBANK', 'KOTAKBANK', 'BANK']):
-        return 'BANKING'
-    # Metal/Steel
-    elif any(metal in symbol_upper for metal in ['TATASTEEL', 'JSWSTEEL', 'SAIL', 'HINDALCO', 'VEDL', 'METAL']):
-        return 'METAL'
-    # IT
-    elif any(it in symbol_upper for it in ['TCS', 'INFY', 'WIPRO', 'HCLTECH', 'TECHM']):
-        return 'IT'
-    # Auto
-    elif any(auto in symbol_upper for auto in ['MARUTI', 'TATAMOTORS', 'BAJAJ', 'HEROMOTOCO', 'EICHER']):
-        return 'AUTO'
-    # Pharma
-    elif any(pharma in symbol_upper for pharma in ['SUNPHARMA', 'DRREDDY', 'CIPLA', 'LUPIN', 'BIOCON']):
-        return 'PHARMA'
-    # Oil & Gas
-    elif any(oil in symbol_upper for oil in ['CRUDE', 'OIL', 'ONGC', 'BPCL', 'HINDPETRO']):
-        return 'OIL'
-    # Gold
-    elif 'GOLD' in symbol_upper:
-        return 'GOLD'
-    # Silver
-    elif 'SILVER' in symbol_upper:
-        return 'SILVER'
-    # Crypto
-    elif any(crypto in symbol_upper for crypto in ['BTC', 'ETH', 'CRYPTO']):
-        return 'CRYPTO'
-    # FMCG
-    elif any(fmcg in symbol_upper for fmcg in ['BRITANNIA', 'HINDUNILVR', 'NESTLEIND', 'DABUR', 'MARICO']):
-        return 'FMCG'
-    else:
-        return 'GENERAL'
+    # Get all positions for this planet up to and including the target date
+    planet_data = df_transit[
+        (df_transit['Planet'] == planet) & 
+        (df_transit['Date'] <= target_date)
+    ].sort_values('DateTime')
+    
+    if planet_data.empty:
+        return None
+    
+    # Get the latest position
+    latest = planet_data.iloc[-1]
+    return latest
 
-def generate_signals(df_transit, watchlist_symbols, selected_date, config):
-    """Generate trading signals for the selected date."""
-    
-    # Filter transit data for selected date
-    date_transits = df_transit[df_transit['Date'] == selected_date].copy()
-    
-    if date_transits.empty:
-        return [], f"No transit data found for {selected_date}"
+def generate_signals_for_date(df_transit, watchlist_symbols, selected_date, config):
+    """Generate trading signals for a specific date using latest planetary positions."""
     
     signals = []
     debug_info = []
+    
+    st.write(f"**🔍 Generating signals for {selected_date}**")
+    
+    # Show available dates in data
+    available_dates = sorted(df_transit['Date'].unique())
+    st.write(f"**Available dates in transit data:** {available_dates}")
+    
+    # Check if we have data for or before the selected date
+    valid_dates = [d for d in available_dates if d <= selected_date]
+    if not valid_dates:
+        return [], f"No transit data available for {selected_date} or earlier dates"
     
     # Group symbols by sector
     sector_symbols = {}
@@ -231,80 +223,70 @@ def generate_signals(df_transit, watchlist_symbols, selected_date, config):
             sector_symbols[sector] = []
         sector_symbols[sector].append(symbol)
     
+    st.write(f"**Sectors found:** {list(sector_symbols.keys())}")
+    
     # Process each sector
     for sector, symbols in sector_symbols.items():
         if sector not in config['sector_planets']:
             continue
             
+        st.write(f"**Processing sector {sector} with {len(symbols)} symbols**")
+        
         # Get planets for this sector
         planets = config['sector_planets'][sector]
         
         # Process each planet
         for planet in planets:
-            planet_transits = date_transits[date_transits['Planet'] == planet].sort_values('DateTime')
+            # Get latest position for this planet as of the selected date
+            latest_position = get_latest_position_for_date(df_transit, planet, selected_date)
             
-            if planet_transits.empty:
+            if latest_position is None:
+                st.write(f"⚠️ No data for {planet} on or before {selected_date}")
                 continue
             
-            # Analyze each transit
-            current_sentiment = None
-            last_time = None
+            nakshatra = latest_position['Nakshatra']
+            position_date = latest_position['Date']
+            position_time = latest_position['DateTime'].time()
             
-            for _, transit in planet_transits.iterrows():
-                nakshatra = transit['Nakshatra']
-                transit_time = transit['DateTime'].time()
-                
-                # Determine sentiment
-                sentiment = None
-                if is_friendly(planet, nakshatra, config):
-                    sentiment = 'Bullish'
-                elif is_enemy(planet, nakshatra, config):
-                    sentiment = 'Bearish'
-                
-                debug_info.append({
-                    'Planet': PLANET_MAPPING.get(planet, planet),
-                    'Nakshatra': nakshatra,
-                    'Time': transit['Time'],
-                    'Sentiment': sentiment or 'Neutral',
-                    'Sector': sector
-                })
-                
-                if sentiment and sentiment != current_sentiment:
-                    # End previous sentiment period
-                    if current_sentiment and last_time:
-                        for symbol in symbols:
-                            start_time, end_time = get_market_timing(symbol)
-                            if start_time <= last_time <= end_time:
-                                signals.append({
-                                    'Symbol': symbol,
-                                    'Sentiment': current_sentiment,
-                                    'Entry': last_time.strftime('%H:%M'),
-                                    'Exit': transit_time.strftime('%H:%M'),
-                                    'Planet': PLANET_MAPPING.get(planet, planet),
-                                    'Nakshatra': nakshatra
-                                })
-                    
-                    current_sentiment = sentiment
-                    last_time = transit_time
+            # Determine sentiment
+            sentiment = None
+            if is_friendly(planet, nakshatra, config):
+                sentiment = 'Bullish'
+            elif is_enemy(planet, nakshatra, config):
+                sentiment = 'Bearish'
+            else:
+                sentiment = 'Neutral'
             
-            # Close final period at market end
-            if current_sentiment and last_time:
+            debug_info.append({
+                'Planet': PLANET_MAPPING.get(planet, planet),
+                'Nakshatra': nakshatra,
+                'Position_Date': position_date,
+                'Sentiment': sentiment,
+                'Sector': sector,
+                'Symbols_Count': len(symbols)
+            })
+            
+            st.write(f"  {PLANET_MAPPING.get(planet, planet)} in {nakshatra} = {sentiment}")
+            
+            # Generate signals for this sentiment
+            if sentiment in ['Bullish', 'Bearish']:
                 for symbol in symbols:
                     start_time, end_time = get_market_timing(symbol)
-                    if start_time <= last_time <= end_time:
-                        signals.append({
-                            'Symbol': symbol,
-                            'Sentiment': current_sentiment,
-                            'Entry': last_time.strftime('%H:%M'),
-                            'Exit': end_time.strftime('%H:%M'),
-                            'Planet': PLANET_MAPPING.get(planet, planet),
-                            'Nakshatra': 'Market Close'
-                        })
+                    
+                    signals.append({
+                        'Symbol': symbol,
+                        'Sentiment': sentiment,
+                        'Entry': start_time.strftime('%H:%M'),
+                        'Exit': end_time.strftime('%H:%M'),
+                        'Planet': PLANET_MAPPING.get(planet, planet),
+                        'Nakshatra': nakshatra,
+                        'Position_Date': position_date
+                    })
     
     return signals, debug_info
 
 # === STREAMLIT UI ===
-st.title("📅 Astro-Trading Signals Generator")
+st.title("📅 Astro-Trading Signals Generator (Date-Specific)")
 st.sidebar.header("⚙️ Settings")
 
 # Load configuration
@@ -312,20 +294,24 @@ config = load_config()
 
 # Date selector
 selected_date = st.sidebar.date_input(
-    "Select Date",
+    "Select Date for Signals",
     value=datetime.now().date(),
     min_value=datetime(2020, 1, 1).date(),
     max_value=datetime(2030, 12, 31).date()
 )
+
+# Show selected date prominently
+st.sidebar.success(f"📅 Selected: {selected_date}")
 
 # File uploaders
 st.sidebar.subheader("📁 Upload Files")
 watchlist_file = st.sidebar.file_uploader("Upload Watchlist", type="txt")
 transit_file = st.sidebar.file_uploader("Upload Transit Data", type="txt")
 
-# Configuration display
-with st.expander("⚙️ View Configuration"):
-    st.json(config)
+# Auto-refresh option
+auto_refresh = st.sidebar.checkbox("🔄 Auto-refresh every 30 seconds")
+if auto_refresh:
+    st.rerun()
 
 if watchlist_file and transit_file:
     try:
@@ -341,15 +327,20 @@ if watchlist_file and transit_file:
             st.error("❌ No valid transit data found!")
             st.stop()
         
-        # Display data info
+        # Display data summary
         st.success(f"✅ Loaded {len(watchlist_symbols)} symbols and {len(df_transit)} transit records")
+        
+        # Show date range in data
+        min_date = df_transit['Date'].min()
+        max_date = df_transit['Date'].max()
+        st.info(f"📊 Transit data covers: {min_date} to {max_date}")
         
         # Show transit data preview
         with st.expander("📊 Transit Data Preview"):
-            st.dataframe(df_transit.head(10))
+            st.dataframe(df_transit)
         
-        # Generate signals
-        signals, debug_info = generate_signals(df_transit, watchlist_symbols, selected_date, config)
+        # Generate date-specific signals
+        signals, debug_info = generate_signals_for_date(df_transit, watchlist_symbols, selected_date, config)
         
         # Display debug information
         with st.expander("🔍 Debug Information"):
@@ -361,13 +352,13 @@ if watchlist_file and transit_file:
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     bullish_count = len([d for d in debug_info if d['Sentiment'] == 'Bullish'])
-                    st.metric("🟢 Bullish Transits", bullish_count)
+                    st.metric("🟢 Bullish Planets", bullish_count)
                 with col2:
                     bearish_count = len([d for d in debug_info if d['Sentiment'] == 'Bearish'])
-                    st.metric("🔴 Bearish Transits", bearish_count)
+                    st.metric("🔴 Bearish Planets", bearish_count)
                 with col3:
                     neutral_count = len([d for d in debug_info if d['Sentiment'] == 'Neutral'])
-                    st.metric("⚪ Neutral Transits", neutral_count)
+                    st.metric("⚪ Neutral Planets", neutral_count)
         
         # Display signals
         if signals:
@@ -380,20 +371,20 @@ if watchlist_file and transit_file:
             col1, col2 = st.columns(2)
             
             with col1:
-                st.subheader("🟢 Bullish Signals")
+                st.subheader(f"🟢 Bullish Signals ({len(bullish_signals)})")
                 if bullish_signals:
                     for signal in bullish_signals:
-                        st.success(f"🟢 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | {signal['Planet']}")
+                        st.success(f"🟢 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | {signal['Planet']} in {signal['Nakshatra']}")
                 else:
-                    st.info("No bullish signals found")
+                    st.info("No bullish signals")
             
             with col2:
-                st.subheader("🔴 Bearish Signals")
+                st.subheader(f"🔴 Bearish Signals ({len(bearish_signals)})")
                 if bearish_signals:
                     for signal in bearish_signals:
-                        st.error(f"🔴 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | {signal['Planet']}")
+                        st.error(f"🔴 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | {signal['Planet']} in {signal['Nakshatra']}")
                 else:
-                    st.info("No bearish signals found")
+                    st.info("No bearish signals")
             
             # Telegram message
             current_time = datetime.now().strftime("%d-%b-%Y %H:%M")
@@ -419,10 +410,25 @@ if watchlist_file and transit_file:
         
         else:
             st.warning("⚠️ No trading signals generated for this date.")
-            st.info("This could mean all transits are neutral or outside market hours.")
+            st.info("All planetary positions may be neutral or no data available for this date.")
     
     except Exception as e:
         st.error(f"❌ Error processing data: {e}")
         st.write("**Error details:**", str(e))
 else:
     st.info("👆 Please upload both watchlist and transit data files to generate signals.")
+    
+    # Instructions
+    st.markdown("""
+    ### 📋 Instructions:
+    1. **Upload Watchlist**: Text file with one symbol per line
+    2. **Upload Transit Data**: Your planetary transit data
+    3. **Select Date**: Choose any date to get signals for that specific day
+    4. **View Signals**: See bullish/bearish signals for that date
+    5. **Send to Telegram**: Share signals instantly
+    
+    ### 🔧 Why dates were showing same results:
+    - System was not properly filtering by date
+    - Now uses latest planetary positions as of selected date
+    - Each date will show different results based on planetary movements
+    """)

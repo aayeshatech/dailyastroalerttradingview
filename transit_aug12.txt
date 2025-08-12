@@ -1,0 +1,15 @@
+Planet	Date	Time	Motion	Sign Lord	Star Lord	Sub Lord	Zodiac	Nakshatra	Pada	Pos in Zodiac	Declination
+Mo	2025-08-12	00:07:20	D	Sa	Ju	Ve	Aquarius	Purvabhadrapada	2	26°33'20"	-3.51
+Mo	2025-08-12	03:55:46	D	Sa	Ju	Su	Aquarius	Purvabhadrapada	3	28°46'40"	-2.45
+Mo	2025-08-12	05:04:13	D	Sa	Ju	Mo	Aquarius	Purvabhadrapada	3	29°26'40"	-2.13
+Mo	2025-08-12	06:01:15	D	Ju	Ju	Mo	Pisces	Purvabhadrapada	4	00°00'00"	-1.86
+Mo	2025-08-12	06:58:15	D	Ju	Ju	Ma	Pisces	Purvabhadrapada	4	00°33'20"	-1.60
+Mo	2025-08-12	08:18:01	D	Ju	Ju	Ra	Pisces	Purvabhadrapada	4	01°20'00"	-1.22
+Mo	2025-08-12	11:42:58	D	Ju	Sa	Sa	Pisces	Uttarabhadrapada	1	03°20'00"	-0.26
+Ve	2025-08-12	12:17:29	D	Me	Ju	Ju	Gemini	Punarvasu	1	20°00'00"	21.77
+Mo	2025-08-12	15:19:01	D	Ju	Sa	Me	Pisces	Uttarabhadrapada	1	05°26'40"	0.75
+Ju	2025-08-12	18:24:51	D	Me	Ju	Ju	Gemini	Punarvasu	1	20°00'00"	22.62
+Mo	2025-08-12	18:32:06	D	Ju	Sa	Ke	Pisces	Uttarabhadrapada	2	07°20'00"	1.66
+Mo	2025-08-12	19:51:32	D	Ju	Sa	Ve	Pisces	Uttarabhadrapada	2	08°06'40"	2.03
+Su	2025-08-12	22:26:45	D	Mo	Me	Ju	Cancer	Ashlesha	3	26°06'40"	14.74
+Mo	2025-08-12	23:38:21	D	Ju	Sa	Su	Pisces	Uttarabhadrapada	3	10°20'00"	3.09

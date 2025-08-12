@@ -1,0 +1,14 @@
+Planet	Date	Time	Motion	Sign Lord	Star Lord	Sub Lord	Zodiac	Nakshatra	Pada	Pos in Zodiac	Declination
+Mo	2025-08-13	00:46:21	D	Ju	Sa	Mo	Pisces	Uttarabhadrapada	3	11°00'00"	3.41
+Mo	2025-08-13	02:39:37	D	Ju	Sa	Ma	Pisces	Uttarabhadrapada	3	12°06'40"	3.94
+Mo	2025-08-13	03:58:53	D	Ju	Sa	Ra	Pisces	Uttarabhadrapada	3	12°53'20"	4.31
+Mo	2025-08-13	07:22:34	D	Ju	Sa	Ju	Pisces	Uttarabhadrapada	4	14°53'20"	5.26
+Mo	2025-08-13	10:23:28	D	Ju	Me	Me	Pisces	Revati	1	16°40'00"	6.10
+Me	2025-08-13	10:38:23	D	Mo	Sa	Su	Cancer	Pushya	3	10°20'00"	16.60
+Mo	2025-08-13	13:35:33	D	Ju	Me	Ke	Pisces	Revati	1	18°33'20"	6.98
+Mo	2025-08-13	14:54:36	D	Ju	Me	Ve	Pisces	Revati	1	19°20'00"	7.35
+Mo	2025-08-13	18:40:21	D	Ju	Me	Su	Pisces	Revati	2	21°33'20"	8.38
+Ma	2025-08-13	19:05:51	D	Me	Mo	Mo	Virgo	Hasta	1	10°00'00"	-1.21
+Mo	2025-08-13	19:48:03	D	Ju	Me	Mo	Pisces	Revati	2	22°13'20"	8.69
+Mo	2025-08-13	21:40:50	D	Ju	Me	Ma	Pisces	Revati	3	23°20'00"	9.20
+Mo	2025-08-13	22:59:46	D	Ju	Me	Ra	Pisces	Revati	3	24°06'40"	9.55

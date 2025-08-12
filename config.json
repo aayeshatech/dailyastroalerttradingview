@@ -1,0 +1,38 @@
+{
+  "sectors": {
+    "BANKING": ["Jupiter", "Venus"],
+    "FINANCE": ["Jupiter", "Venus"],
+    "IT": ["Mercury"],
+    "COMMUNICATION": ["Mercury"],
+    "METALS": ["Venus", "Mars"],
+    "ENERGY": ["Mars", "Sun"],
+    "OILGAS": ["Mars", "Sun"],
+    "GLOBAL_INDICES": ["Sun", "Jupiter"],
+    "CRYPTO": ["Moon", "Uranus", "Mercury"],
+    "AGRICULTURE": ["Moon", "Venus"]
+  },
+  "friendly_nakshatras": {
+    "Jupiter": ["Punarvasu", "Vishakha", "Purvabhadrapada"],
+    "Venus": ["Bharani", "PurvaPhalguni", "Purvashadha"],
+    "Mercury": ["Ashlesha", "Jyeshtha", "Revati"],
+    "Mars": ["Mrigashira", "Chitra", "Dhanishtha"],
+    "Sun": ["Krittika", "UttaraPhalguni", "Uttarashadha"],
+    "Moon": ["Rohini", "Hasta", "Shravana"],
+    "Saturn": ["Pushya", "Anuradha", "Uttarabhadrapada"],
+    "Uranus": ["Shatabhisha"],
+    "Pluto": [],
+    "Neptune": ["Purvabhadrapada"]
+  },
+  "enemy_nakshatras": {
+    "Jupiter": ["Rohini", "Hasta", "Shravana"],
+    "Venus": ["Pushya", "Anuradha", "Uttarabhadrapada"],
+    "Mercury": ["Bharani", "PurvaPhalguni", "Purvashadha"],
+    "Mars": ["Punarvasu", "Vishakha", "Purvabhadrapada"],
+    "Sun": ["Mrigashira", "Chitra", "Dhanishtha"],
+    "Moon": ["Krittika", "UttaraPhalguni", "Uttarashadha"],
+    "Saturn": ["Bharani", "PurvaPhalguni", "Purvashadha"],
+    "Uranus": [],
+    "Pluto": [],
+    "Neptune": []
+  }
+}

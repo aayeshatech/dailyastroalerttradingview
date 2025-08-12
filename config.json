@@ -3,68 +3,81 @@ import pandas as pd
 import json
 from datetime import datetime
 
-# --- Load Config ---
+# === Load Config ===
 with open("config.json") as f:
     config = json.load(f)
 
-# --- Normalize names ---
 def normalize_name(name):
-    """Normalize nakshatra names for flexible matching."""
+    """Normalize nakshatra names for matching."""
     return name.strip().lower().replace(" ", "")
 
 def is_friendly(planet, nakshatra):
-    nakshatra_norm = normalize_name(nakshatra)
-    return any(nakshatra_norm in normalize_name(n) for n in config["friendly_nakshatras"].get(planet, []))
+    nak_norm = normalize_name(nakshatra)
+    return any(nak_norm in normalize_name(n) for n in config["friendly_nakshatras"].get(planet, []))
 
 def is_enemy(planet, nakshatra):
-    nakshatra_norm = normalize_name(nakshatra)
-    return any(nakshatra_norm in normalize_name(n) for n in config["enemy_nakshatras"].get(planet, []))
+    nak_norm = normalize_name(nakshatra)
+    return any(nak_norm in normalize_name(n) for n in config["enemy_nakshatras"].get(planet, []))
 
-# --- Title ---
-st.title("📅 Astro-Trading Signals")
+st.title("📅 Astro-Trading Signals — Intraday Windows")
 
-# --- File uploaders ---
+# === File Uploaders ===
 watchlist_file = st.file_uploader("Upload Watchlist TXT", type="txt")
 transit_file = st.file_uploader("Upload Planetary Transit TXT", type="txt")
 
 if watchlist_file and transit_file:
-    # Read Watchlist
+    # Load watchlist
     watchlist_symbols = [line.strip() for line in watchlist_file if line.strip()]
-    
-    # Read Transit Data
+
+    # Load planetary transit
     df_transit = pd.read_csv(transit_file, sep="\t")
     df_transit.columns = [c.strip() for c in df_transit.columns]
 
     today_str = datetime.now().strftime("%d-%b-%Y")
     generated_time = datetime.now().strftime("%d-%b-%Y %H:%M")
 
-    signals = []
-    for _, row in df_transit.iterrows():
-        planet = row["Planet"].strip()
-        nakshatra = row["Nakshatra"].strip()
+    all_signals = []
 
-        if is_enemy(planet, nakshatra):
-            sentiment = "Bearish"
-        elif is_friendly(planet, nakshatra):
-            sentiment = "Bullish"
-        else:
-            sentiment = None  # Neutral, skip
+    # === Process each sector ===
+    for sector, planets in config["sectors"].items():
+        sector_symbols = [s for s in watchlist_symbols if sector in s.upper()]
 
-        if sentiment:
-            # Match sectors
-            for sector, planets in config["sectors"].items():
-                if planet in planets:
-                    # Filter symbols for sector
-                    for symbol in watchlist_symbols:
-                        if sector in symbol.upper():  # crude sector detection
-                            signals.append((symbol, sentiment, row["Time"], row["Time"]))
+        for planet in planets:
+            planet_rows = df_transit[df_transit["Planet"].str.strip() == planet].sort_values(by="Time")
 
-    # --- Output ---
-    if signals:
+            sentiment_rows = []
+            for _, row in planet_rows.iterrows():
+                nakshatra = row["Nakshatra"].strip()
+                if is_friendly(planet, nakshatra):
+                    sentiment_rows.append((row["Time"], "Bullish"))
+                elif is_enemy(planet, nakshatra):
+                    sentiment_rows.append((row["Time"], "Bearish"))
+                # Neutral is skipped
+
+            # === Group continuous sentiment periods ===
+            grouped = []
+            if sentiment_rows:
+                current_sentiment = sentiment_rows[0][1]
+                start_time = sentiment_rows[0][0]
+
+                for i in range(1, len(sentiment_rows)):
+                    time, sentiment = sentiment_rows[i]
+                    if sentiment != current_sentiment:
+                        grouped.append((current_sentiment, start_time, sentiment_rows[i-1][0]))
+                        current_sentiment = sentiment
+                        start_time = time
+                grouped.append((current_sentiment, start_time, sentiment_rows[-1][0]))
+
+            # === Map to symbols ===
+            for sentiment, entry, exit_time in grouped:
+                for symbol in sector_symbols:
+                    all_signals.append((symbol, sentiment, entry, exit_time))
+
+    # === Output ===
+    if all_signals:
         st.write(f"📅 **Astro-Trading Signals — {today_str} (Generated {generated_time})**")
-        for symbol, sentiment, entry, exit_time in signals:
+        for symbol, sentiment, entry, exit_time in all_signals:
             emoji = "🟢" if sentiment == "Bullish" else "🔴"
             st.write(f"{emoji} {symbol} → {sentiment} | Entry: {entry} | Exit: {exit_time}")
     else:
-        st.warning("No bullish or bearish signals detected for today.")
-
+        st.warning("No bullish or bearish signals found for today.")

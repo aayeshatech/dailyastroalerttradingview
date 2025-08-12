@@ -83,7 +83,7 @@ def send_to_telegram(message):
 # --- Streamlit UI ---
 st.title("🔮 Morning Astro Trading Signals")
 
-# Default to today's date at 09:15 (market open)
+# Defaults to today's date at 09:15
 default_datetime = datetime.datetime.combine(datetime.date.today(), datetime.time(9, 15))
 date = st.date_input("Date", default_datetime.date())
 time = st.time_input("Time", default_datetime.time())

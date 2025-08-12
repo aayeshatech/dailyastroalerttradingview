@@ -15,7 +15,7 @@ NSE_END = time(15, 30)
 GLOBAL_START = time(5, 0)
 GLOBAL_END = time(21, 0)
 
-# === ENHANCED CONFIG WITH MORE VARIATIONS ===
+# === ENHANCED CONFIG ===
 DEFAULT_CONFIG = {
     "sector_planets": {
         "BANKING": ["Ju", "Ve", "Me"],
@@ -50,17 +50,6 @@ DEFAULT_CONFIG = {
         "Ra": ["Rohini", "Hasta", "Shravana", "Pushya", "Uttaraphalguni"],
         "Ke": ["Rohini", "Hasta", "Shravana", "Punarvasu", "Vishakha"],
         "Su": ["Ashlesha", "Jyeshtha", "Shatabhisha", "Swati", "Revati"]
-    },
-    # Daily variations for when transit data is limited
-    "daily_variations": {
-        "Mo": {  # Moon changes frequently
-            0: "Ashwini", 1: "Bharani", 2: "Kritika", 3: "Rohini", 4: "Mrigashirsha",
-            5: "Ardra", 6: "Punarvasu"
-        },
-        "Ve": {  # Venus changes periodically
-            0: "Bharani", 1: "Kritika", 2: "Rohini", 3: "Mrigashirsha", 4: "Ardra",
-            5: "Punarvasu", 6: "Pushya"
-        }
     }
 }
 
@@ -100,39 +89,59 @@ def normalize_nakshatra(name):
     normalized = name.strip().lower().replace(" ", "").replace("-", "")
     return nakshatra_map.get(normalized, normalized)
 
-def parse_transit_data(transit_text):
-    """Parse the planetary transit data."""
-    lines = transit_text.strip().split('\n')
-    data = []
+def parse_multiple_transit_files(uploaded_files):
+    """Parse multiple transit files and combine them."""
+    all_data = []
+    file_info = {}
     
-    for i, line in enumerate(lines):
-        if line.strip() and not line.startswith('Planet'):
-            try:
-                if '\t' in line:
-                    parts = line.split('\t')
-                else:
-                    parts = line.split()
-                
-                if len(parts) >= 9:
-                    planet_code = parts[0].strip('*')
-                    date_str = parts[1]
-                    time_str = parts[2]
-                    nakshatra = parts[7]
+    for uploaded_file in uploaded_files:
+        file_name = uploaded_file.name
+        file_content = uploaded_file.read().decode('utf-8')
+        
+        # Reset file pointer for multiple reads
+        uploaded_file.seek(0)
+        
+        lines = file_content.strip().split('\n')
+        file_data = []
+        
+        for line in lines:
+            if line.strip() and not line.startswith('Planet'):
+                try:
+                    if '\t' in line:
+                        parts = line.split('\t')
+                    else:
+                        parts = line.split()
                     
-                    dt = datetime.strptime(f"{date_str} {time_str}", '%Y-%m-%d %H:%M:%S')
-                    
-                    data.append({
-                        'Planet': planet_code,
-                        'DateTime': dt,
-                        'Date': dt.date(),
-                        'Time': dt.strftime('%H:%M:%S'),
-                        'Nakshatra': nakshatra
-                    })
+                    if len(parts) >= 9:
+                        planet_code = parts[0].strip('*')
+                        date_str = parts[1]
+                        time_str = parts[2]
+                        nakshatra = parts[7]
                         
-            except Exception as e:
-                continue
+                        dt = datetime.strptime(f"{date_str} {time_str}", '%Y-%m-%d %H:%M:%S')
+                        
+                        entry = {
+                            'Planet': planet_code,
+                            'DateTime': dt,
+                            'Date': dt.date(),
+                            'Time': dt.strftime('%H:%M:%S'),
+                            'Nakshatra': nakshatra,
+                            'Source_File': file_name
+                        }
+                        
+                        file_data.append(entry)
+                        all_data.append(entry)
+                        
+                except Exception as e:
+                    continue
+        
+        file_info[file_name] = {
+            'records': len(file_data),
+            'dates': list(set([d['Date'] for d in file_data])),
+            'planets': list(set([d['Planet'] for d in file_data]))
+        }
     
-    return pd.DataFrame(data)
+    return pd.DataFrame(all_data), file_info
 
 def get_market_timing(symbol):
     if symbol.startswith('NSE:') or symbol.startswith('BSE:'):
@@ -184,52 +193,45 @@ def is_enemy(planet, nakshatra, config):
     
     return norm_nakshatra in enemy_list
 
-def get_planetary_position_for_date(df_transit, planet, target_date, config):
-    """Get planetary position for a specific date with daily variations."""
+def compare_planetary_positions(df_transit, date1, date2):
+    """Compare planetary positions between two dates."""
     
-    # First try to get exact data from transit file
-    planet_data = df_transit[
-        (df_transit['Planet'] == planet) & 
-        (df_transit['Date'] <= target_date)
-    ].sort_values('DateTime')
+    comparisons = []
     
-    if not planet_data.empty:
-        latest = planet_data.iloc[-1]
-        return latest['Nakshatra'], latest['Date'], "transit_data"
+    # Get unique planets
+    planets = df_transit['Planet'].unique()
     
-    # If no data, use daily variations based on date
-    if planet in config.get('daily_variations', {}):
-        day_offset = (target_date - datetime(2025, 8, 12).date()).days
-        variations = config['daily_variations'][planet]
-        nakshatra_index = day_offset % len(variations)
-        nakshatra = variations[nakshatra_index]
-        return nakshatra, target_date, "calculated"
+    for planet in planets:
+        # Get positions for date1
+        pos1_data = df_transit[
+            (df_transit['Planet'] == planet) & 
+            (df_transit['Date'] <= date1)
+        ].sort_values('DateTime')
+        
+        # Get positions for date2
+        pos2_data = df_transit[
+            (df_transit['Planet'] == planet) & 
+            (df_transit['Date'] <= date2)
+        ].sort_values('DateTime')
+        
+        pos1 = pos1_data.iloc[-1]['Nakshatra'] if not pos1_data.empty else "No Data"
+        pos2 = pos2_data.iloc[-1]['Nakshatra'] if not pos2_data.empty else "No Data"
+        
+        comparisons.append({
+            'Planet': PLANET_MAPPING.get(planet, planet),
+            f'Position_{date1}': pos1,
+            f'Position_{date2}': pos2,
+            'Changed': pos1 != pos2,
+            'Same': pos1 == pos2
+        })
     
-    # Default fallback
-    default_positions = {
-        "Mo": "Purvabhadrapada",  # From your transit data
-        "Ju": "Uttarabhadrapada",
-        "Ve": "Punarvasu",
-        "Su": "Ashlesha",
-        "Ma": "Bharani",
-        "Me": "Kritika",
-        "Sa": "Pushya",
-        "Ra": "Ardra",
-        "Ke": "Magha"
-    }
-    
-    return default_positions.get(planet, "Ashwini"), target_date, "default"
+    return pd.DataFrame(comparisons)
 
-def generate_dynamic_signals(df_transit, watchlist_symbols, selected_date, config):
-    """Generate signals with dynamic planetary positions for different dates."""
+def generate_signals_with_comparison(df_transit, watchlist_symbols, selected_date, config):
+    """Generate signals and show comparison."""
     
     signals = []
     debug_info = []
-    
-    # Show data source info
-    available_dates = sorted(df_transit['Date'].unique()) if not df_transit.empty else []
-    st.write(f"**📅 Available transit dates:** {available_dates}")
-    st.write(f"**🎯 Generating signals for:** {selected_date}")
     
     # Group symbols by sector
     sector_symbols = {}
@@ -248,9 +250,17 @@ def generate_dynamic_signals(df_transit, watchlist_symbols, selected_date, confi
         
         # Process each planet
         for planet in planets:
-            nakshatra, data_date, source = get_planetary_position_for_date(
-                df_transit, planet, selected_date, config
-            )
+            # Get latest position for selected date
+            planet_data = df_transit[
+                (df_transit['Planet'] == planet) & 
+                (df_transit['Date'] <= selected_date)
+            ].sort_values('DateTime')
+            
+            if planet_data.empty:
+                continue
+                
+            latest = planet_data.iloc[-1]
+            nakshatra = latest['Nakshatra']
             
             # Determine sentiment
             sentiment = None
@@ -264,11 +274,10 @@ def generate_dynamic_signals(df_transit, watchlist_symbols, selected_date, confi
             debug_info.append({
                 'Planet': PLANET_MAPPING.get(planet, planet),
                 'Nakshatra': nakshatra,
-                'Data_Date': data_date,
-                'Source': source,
                 'Sentiment': sentiment,
                 'Sector': sector,
-                'Selected_Date': selected_date
+                'Data_Date': latest['Date'],
+                'Source_File': latest['Source_File']
             })
             
             # Generate signals for this sentiment
@@ -282,65 +291,93 @@ def generate_dynamic_signals(df_transit, watchlist_symbols, selected_date, confi
                         'Entry': start_time.strftime('%H:%M'),
                         'Exit': end_time.strftime('%H:%M'),
                         'Planet': PLANET_MAPPING.get(planet, planet),
-                        'Nakshatra': nakshatra,
-                        'Source': source
+                        'Nakshatra': nakshatra
                     })
     
     return signals, debug_info
 
 # === STREAMLIT UI ===
-st.title("📅 Astro-Trading Signals Generator (Enhanced)")
+st.title("📅 Multi-File Astro-Trading Signals Analyzer")
 
 # Important notice
-st.warning("⚠️ **Notice**: Your transit data only contains Aug 12, 2025. For different dates, the system will use calculated planetary movements.")
+st.info("📊 **Enhanced System**: Upload multiple transit files to compare different dates and see exactly why results might be the same.")
 
 config = load_config()
 
-# Date selector with explanation
+# Date selector
 selected_date = st.date_input(
-    "Select Date for Signals",
-    value=datetime.now().date(),
+    "Select Date for Analysis",
+    value=datetime(2025, 8, 12).date(),
     min_value=datetime(2025, 8, 10).date(),
-    max_value=datetime(2025, 8, 20).date(),
-    help="Select any date. If no transit data exists, calculated positions will be used."
+    max_value=datetime(2025, 8, 20).date()
 )
 
 # File uploaders
 st.subheader("📁 Upload Files")
 watchlist_file = st.file_uploader("Upload Watchlist", type="txt")
-transit_file = st.file_uploader("Upload Transit Data", type="txt")
+transit_files = st.file_uploader(
+    "Upload Transit Files (multiple files supported)", 
+    type="txt", 
+    accept_multiple_files=True,
+    help="Upload both transit_aug12.txt and transit_aug13.txt to compare"
+)
 
-if watchlist_file and transit_file:
+if watchlist_file and transit_files:
     try:
         # Load watchlist
         watchlist_content = watchlist_file.read().decode('utf-8')
         watchlist_symbols = [line.strip() for line in watchlist_content.split('\n') if line.strip()]
         
-        # Load and parse transit data
-        transit_content = transit_file.read().decode('utf-8')
-        df_transit = parse_transit_data(transit_content)
+        # Parse multiple transit files
+        df_transit, file_info = parse_multiple_transit_files(transit_files)
         
-        st.success(f"✅ Loaded {len(watchlist_symbols)} symbols and {len(df_transit)} transit records")
+        # Display file information
+        st.success(f"✅ Loaded {len(watchlist_symbols)} symbols from {len(transit_files)} transit files")
         
-        # Generate signals with dynamic positions
-        signals, debug_info = generate_dynamic_signals(df_transit, watchlist_symbols, selected_date, config)
+        # Show file details
+        with st.expander("📊 File Information"):
+            for filename, info in file_info.items():
+                st.write(f"**{filename}:**")
+                st.write(f"  - Records: {info['records']}")
+                st.write(f"  - Dates: {info['dates']}")
+                st.write(f"  - Planets: {info['planets']}")
+        
+        # Show comparison if multiple dates available
+        available_dates = sorted(df_transit['Date'].unique())
+        if len(available_dates) >= 2:
+            st.subheader("🔍 Planetary Position Comparison")
+            
+            date1 = available_dates[0]
+            date2 = available_dates[1] if len(available_dates) > 1 else available_dates[0]
+            
+            comparison_df = compare_planetary_positions(df_transit, date1, date2)
+            
+            st.write(f"**Comparing {date1} vs {date2}:**")
+            st.dataframe(comparison_df)
+            
+            # Count changes
+            changed_count = comparison_df['Changed'].sum()
+            same_count = comparison_df['Same'].sum()
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("🔄 Planets Changed", changed_count)
+            with col2:
+                st.metric("⚪ Planets Same", same_count)
+            
+            if changed_count == 0:
+                st.warning("⚠️ **No planetary positions changed!** This is why you're getting identical results.")
+            else:
+                st.success(f"✅ {changed_count} planets changed positions, so signals should be different.")
+        
+        # Generate signals for selected date
+        signals, debug_info = generate_signals_with_comparison(df_transit, watchlist_symbols, selected_date, config)
         
         # Display debug information
-        with st.expander("🔍 Detailed Analysis"):
+        with st.expander("🔍 Detailed Planetary Analysis"):
             if debug_info:
                 debug_df = pd.DataFrame(debug_info)
                 st.dataframe(debug_df)
-                
-                # Show data sources
-                source_counts = debug_df['Source'].value_counts()
-                st.write("**Data Sources Used:**")
-                for source, count in source_counts.items():
-                    if source == "transit_data":
-                        st.success(f"✅ {count} planets from actual transit data")
-                    elif source == "calculated":
-                        st.info(f"📊 {count} planets from calculated positions")
-                    else:
-                        st.warning(f"⚠️ {count} planets from default positions")
                 
                 # Signal counts
                 col1, col2, col3 = st.columns(3)
@@ -368,19 +405,17 @@ if watchlist_file and transit_file:
                 st.subheader(f"🟢 Bullish Signals ({len(bullish_signals)})")
                 if bullish_signals:
                     for signal in bullish_signals:
-                        source_icon = "📊" if signal['Source'] == "calculated" else "📡"
-                        st.success(f"🟢 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | {signal['Planet']} {source_icon}")
+                        st.success(f"🟢 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | {signal['Planet']} in {signal['Nakshatra']}")
                 else:
-                    st.info("No bullish signals")
+                    st.info("No bullish signals found")
             
             with col2:
                 st.subheader(f"🔴 Bearish Signals ({len(bearish_signals)})")
                 if bearish_signals:
                     for signal in bearish_signals:
-                        source_icon = "📊" if signal['Source'] == "calculated" else "📡"
-                        st.error(f"🔴 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | {signal['Planet']} {source_icon}")
+                        st.error(f"🔴 {signal['Symbol']} | {signal['Entry']}-{signal['Exit']} | {signal['Planet']} in {signal['Nakshatra']}")
                 else:
-                    st.info("No bearish signals")
+                    st.info("No bearish signals found")
             
             # Telegram message
             current_time = datetime.now().strftime("%d-%b-%Y %H:%M")
@@ -409,26 +444,26 @@ if watchlist_file and transit_file:
     
     except Exception as e:
         st.error(f"❌ Error processing data: {e}")
+        st.write("**Error details:**", str(e))
 else:
-    st.info("👆 Please upload both files to generate signals.")
+    st.info("👆 Please upload watchlist and transit files to analyze.")
     
     st.markdown("""
-    ### 🔧 Why You Got Same Results:
+    ### 🔍 Why You're Getting Same Results:
     
-    **Problem**: Your transit data only contains **August 12, 2025** data. When you select August 13, the system had no new data to use.
+    **Most Likely Causes:**
+    1. 📊 **Identical planetary positions** in both transit files
+    2. 🕐 **Same time periods** covered in both files  
+    3. ⚪ **All planets in neutral nakshatras** for both dates
     
-    **Solution**: This enhanced system will:
-    1. ✅ Use actual transit data when available
-    2. 📊 Calculate planetary movements for other dates  
-    3. 🎯 Generate different signals for different dates
+    ### 📋 How This Enhanced System Helps:
     
-    ### 📊 How to Get Different Results:
-    1. **Upload files** and select different dates
-    2. **Check debug section** to see data sources
-    3. **Different dates** = **Different planetary positions** = **Different signals**
+    1. **📁 Multi-File Support**: Upload both transit_aug12.txt and transit_aug13.txt
+    2. **🔍 Position Comparison**: See exactly which planets changed
+    3. **📊 Detailed Analysis**: Understand why signals are same/different
+    4. **🎯 Root Cause**: Identify the exact reason for identical results
     
-    ### 📡 Data Sources:
-    - **Transit Data**: From your uploaded file
-    - **Calculated**: Based on planetary movement patterns
-    - **Default**: Fallback positions
+    ### 💡 Expected Behavior:
+    - If planetary positions are **identical** → Same signals ✅
+    - If planetary positions **changed** → Different signals ✅
     """)

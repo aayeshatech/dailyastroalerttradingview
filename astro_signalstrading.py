@@ -7,14 +7,17 @@ from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
 from flatlib import const
 
+# === TELEGRAM CONFIG ===
 BOT_TOKEN = '7613703350:AAE-W4dJ37lngM4lO2Tnuns8-a-80jYRtxk'
 CHAT_ID = '-1002840229810'
 
+# === Vedic Sign Strengths ===
 sign_strength = {
     "Leo": 2, "Cancer": 1, "Virgo": 2, "Taurus": 2, "Pisces": -1, "Capricorn": -2,
     "Scorpio": 0, "Gemini": 1, "Aries": 2, "Libra": 0, "Sagittarius": 1, "Aquarius": -1
 }
 
+# === Sector → Planets ===
 planet_influence = {
     "banking": {"positive": ["Jupiter", "Venus"], "negative": ["Saturn", "Mars"]},
     "metals": {"positive": ["Venus", "Sun"], "negative": ["Saturn", "Mars"]},
@@ -25,6 +28,7 @@ planet_influence = {
     "other": {"positive": ["Jupiter"], "negative": ["Saturn"]}
 }
 
+# === Symbol → Sector ===
 symbol_sector_map = {
     "AMEX:DIA": "indices", "AMEX:FXE": "indices", "AMEX:GLD": "metals", "AMEX:SPY": "indices",
     "BINANCE:LTCUSD": "crypto", "BIST:XAGUSD1!": "metals", "BITSTAMP:BTCUSD": "crypto",
@@ -36,8 +40,9 @@ symbol_sector_map = {
     "COINBASE:ETHUSD": "crypto"
 }
 
+# === Calculate planetary positions ===
 def get_planetary_positions(date_obj):
-    pos = GeoPos("51.48", "0.0")  
+    pos = GeoPos("51.48", "0.0")  # Greenwich
     dt = Datetime(date_obj.strftime("%Y/%m/%d"), date_obj.strftime("%H:%M"), "+00:00")
     chart = Chart(dt, pos)
     planet_map = {
@@ -47,6 +52,7 @@ def get_planetary_positions(date_obj):
     }
     return {name: chart.get(code).sign for name, code in planet_map.items()}
 
+# === Determine Bullish/Bearish ===
 def get_sentiment(sector, planetary_positions):
     pos_score = sum(sign_strength.get(planetary_positions[p], 0) for p in planet_influence[sector]["positive"])
     neg_score = sum(sign_strength.get(planetary_positions[p], 0) for p in planet_influence[sector]["negative"])
@@ -55,6 +61,7 @@ def get_sentiment(sector, planetary_positions):
 def get_market_times(symbol):
     return ("09:15", "15:30") if symbol.startswith("NSE:") else ("05:00", "21:00")
 
+# === Generate signals ===
 def generate_signals(selected_datetime):
     planetary_positions = get_planetary_positions(selected_datetime)
     astro_date = selected_datetime.strftime("%d-%b-%Y")
@@ -68,20 +75,23 @@ def generate_signals(selected_datetime):
         lines.append(f"{emoji} {symbol} → {sentiment} | Entry: {entry} | Exit: {exit_}")
     return "\n".join(lines)
 
+# === Telegram send ===
 def send_to_telegram(message):
     requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                   data={"chat_id": CHAT_ID, "text": message, "parse_mode": "HTML"})
 
 # --- Streamlit UI ---
-st.title("🔮 Astro Trading Signal Generator")
+st.title("🔮 Morning Astro Trading Signals")
 
-date = st.date_input("Select Date", datetime.date.today())
-time = st.time_input("Select Time", datetime.datetime.now().time())
+# Default to today's date at 09:15 (market open)
+default_datetime = datetime.datetime.combine(datetime.date.today(), datetime.time(9, 15))
+date = st.date_input("Date", default_datetime.date())
+time = st.time_input("Time", default_datetime.time())
 
-if st.button("Generate Signals"):
+if st.button("Generate Morning Signals"):
     dt = datetime.datetime.combine(date, time)
     signals_text = generate_signals(dt)
-    st.text_area("Generated Signals", signals_text, height=500)
-    st.success("✅ Signals generated instantly")
+    st.text_area("Today's Signals", signals_text, height=500)
+    st.success("✅ Morning signals generated")
     threading.Thread(target=send_to_telegram, args=(signals_text,), daemon=True).start()
-    st.caption("📩 Sending to Telegram in background...")
+    st.caption("📩 Telegram sending in background...")

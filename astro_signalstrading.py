@@ -5,8 +5,8 @@ import datetime
 import requests
 
 # === USER TELEGRAM CONFIG ===
-BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
-CHAT_ID = "YOUR_CHAT_ID"
+BOT_TOKEN = "7613703350:AAE-W4dJ37lngM4lO2Tnuns8-a-80jYRtxk"
+CHAT_ID = "-1002840229810"
 
 # === LOAD CONFIG ===
 with open("config.json", "r") as f:

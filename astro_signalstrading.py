@@ -1,56 +1,42 @@
 import streamlit as st
 from skyfield.api import load
-from datetime import datetime, time
+from datetime import datetime
 import pytz
 import requests
 
 # ==========================
 # TELEGRAM CONFIG
 # ==========================
-BOT_TOKEN = "7613703350:AAE-W4dJ37lngM4lO2Tnuns8-a-80jYRtxk"
-CHAT_ID = "-1002840229810"
+BOT_TOKEN = "YOUR_BOT_TOKEN"
+CHAT_ID = "YOUR_CHAT_ID"
 
 # ==========================
-# MERGED SYMBOL SECTOR MAP
-# (From your 3 watchlists)
+# LOAD SYMBOLS FROM FILE
 # ==========================
-symbol_sector_map = {
-    # Auto-generated from merged watchlists
-    "NSE:HDFCBANK": "banking",
-    "NSE:TATASTEEL": "metals",
-    "MCX:GOLD1!": "metals",
-    "MCX:SILVER1!": "metals",
-    "MCX:CRUDEOIL1!": "energy",
-    "CFI:US100": "tech",
-    "CAPITALCOM:US500": "indices",
-    "FX:US30": "indices",
-    "BITSTAMP:BTCUSD": "crypto",
-    "COINBASE:ETHUSD": "crypto",
-    # ... Add rest of merged symbols here from extracted list
-}
+with open("watchlist.txt", "r") as f:
+    all_symbols = sorted(set(line.strip() for line in f if line.strip()))
 
-# Auto-classification fallback
+# ==========================
+# AUTO-SECTOR CLASSIFICATION
+# ==========================
 def classify_sector(symbol):
     s = symbol.upper()
-    if "BANK" in s or "HDFC" in s or "ICICI" in s or "SBI" in s:
+    if any(x in s for x in ["BANK", "HDFC", "ICICI", "SBI", "AXIS", "KOTAK"]):
         return "banking"
-    elif "GOLD" in s or "SILVER" in s or "METAL" in s or "STEEL" in s:
+    elif any(x in s for x in ["GOLD", "SILVER", "METAL", "STEEL", "CEM"]):
         return "metals"
-    elif "CRUDE" in s or "OIL" in s or "GAS" in s or "ENERGY" in s:
+    elif any(x in s for x in ["CRUDE", "OIL", "GAS", "ONGC", "POWER", "ENERGY"]):
         return "energy"
-    elif "TECH" in s or "INFY" in s or "TCS" in s or "WIPRO" in s or "US100" in s or "NASDAQ" in s:
+    elif any(x in s for x in ["TECH", "INFY", "TCS", "WIPRO", "HCL", "US100", "NASDAQ"]):
         return "tech"
-    elif "BTC" in s or "ETH" in s or "DOGE" in s or "SHIB" in s or "CRYPTO" in s:
+    elif any(x in s for x in ["BTC", "ETH", "DOGE", "SHIB", "CRYPTO"]):
         return "crypto"
-    elif "US500" in s or "US30" in s or "S&P" in s or "DOW" in s or "NIFTY" in s or "SENSEX" in s:
+    elif any(x in s for x in ["US500", "US30", "S&P", "DOW", "NIFTY", "SENSEX"]):
         return "indices"
     else:
         return "other"
 
-# Ensure all symbols in map
-for sym in list(symbol_sector_map.keys()):
-    if not symbol_sector_map[sym]:
-        symbol_sector_map[sym] = classify_sector(sym)
+symbol_sector_map = {sym: classify_sector(sym) for sym in all_symbols}
 
 # ==========================
 # ASTRO CALCULATION
@@ -78,30 +64,22 @@ def get_planet_positions(dt):
         positions[name] = lon.degrees
     return positions
 
-# Simple scoring logic per sector
 def score_sector(sector, positions):
     score = 0
     if sector == "banking":
-        if positions["Jupiter"] > 180: score += 1
-        else: score -= 1
+        score += 1 if positions["Jupiter"] > 180 else -1
     elif sector == "metals":
-        if positions["Venus"] > 180: score += 1
-        else: score -= 1
+        score += 1 if positions["Venus"] > 180 else -1
     elif sector == "energy":
-        if positions["Mars"] > 180: score += 1
-        else: score -= 1
+        score += 1 if positions["Mars"] > 180 else -1
     elif sector == "tech":
-        if positions["Mercury"] > 180: score += 1
-        else: score -= 1
+        score += 1 if positions["Mercury"] > 180 else -1
     elif sector == "crypto":
-        if positions["Uranus"] > 180: score += 1
-        else: score -= 1
+        score += 1 if positions["Uranus"] > 180 else -1
     elif sector == "indices":
-        if positions["Sun"] > 180: score += 1
-        else: score -= 1
+        score += 1 if positions["Sun"] > 180 else -1
     else:
-        if positions["Moon"] > 180: score += 1
-        else: score -= 1
+        score += 1 if positions["Moon"] > 180 else -1
     return "Bullish" if score > 0 else "Bearish"
 
 # ==========================
@@ -115,21 +93,19 @@ positions = get_planet_positions(now)
 results = []
 for symbol, sector in symbol_sector_map.items():
     sentiment = score_sector(sector, positions)
-    if symbol.startswith("NSE") or symbol.startswith("BSE"):
+    if symbol.startswith(("NSE", "BSE")):
         entry, exit = "09:15", "15:30"
     else:
         entry, exit = "05:00", "21:00"
     results.append((symbol, sentiment, entry, exit))
 
-# Display
+# Display results
 st.write(f"📅 Astro-Trading Signals — {now.strftime('%d-%b-%Y')} (Generated {now.strftime('%H:%M')})")
 for sym, sentiment, entry, exit in results:
     icon = "🟢" if sentiment == "Bullish" else "🔴"
     st.write(f"{icon} {sym} → {sentiment} | Entry: {entry} | Exit: {exit}")
 
-# ==========================
-# TELEGRAM SEND
-# ==========================
+# Send to Telegram
 if st.button("Send to Telegram"):
     message = f"📅 Astro-Trading Signals — {now.strftime('%d-%b-%Y')} (Generated {now.strftime('%H:%M')})\n"
     for sym, sentiment, entry, exit in results:

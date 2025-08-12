@@ -1,15 +1,10 @@
-import requests
+import streamlit as st
 import datetime
-import swisseph as swe
-import schedule
-import time
-import csv
-from pathlib import Path
+import requests
 from flatlib.chart import Chart
 from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
 from flatlib import const
-
 
 # === TELEGRAM BOT CONFIGURATION ===
 BOT_TOKEN = '7613703350:AAE-W4dJ37lngM4lO2Tnuns8-a-80jYRtxk'
@@ -61,12 +56,11 @@ symbol_sector_map = {
     "COINBASE:ETHUSD": "crypto"
 }
 
-# === Swiss Ephemeris Planetary Position Calculation ===
+# === Flatlib Planetary Position Calculation ===
 def get_planetary_positions(date_obj):
     date_str = date_obj.strftime("%Y/%m/%d")
     time_str = date_obj.strftime("%H:%M")
-    # Geo position can be any fixed point, e.g., Greenwich
-    pos = GeoPos("51.48", "0.0")
+    pos = GeoPos("51.48", "0.0")  # Greenwich
     dt = Datetime(date_str, time_str, "+00:00")
     chart = Chart(dt, pos)
 
@@ -89,14 +83,6 @@ def get_planetary_positions(date_obj):
         positions[name] = pl.sign
     return positions
 
-    positions = {}
-    for name, pl_code in planet_map.items():
-        lon, lat, dist = swe.calc_ut(jd, pl_code)
-        sign_index = int(lon // 30)
-        positions[name] = signs[sign_index]
-
-    return positions
-
 # === Sentiment calculation ===
 def get_sentiment(sector, planetary_positions):
     positive_planets = planet_influence[sector]["positive"]
@@ -112,11 +98,10 @@ def get_market_times(symbol):
     else:
         return "05:00", "21:00"
 
-# === Main signal generation function ===
-def run_signals():
-    now = datetime.datetime.now()
-    astro_date = now.strftime("%d-%b-%Y")
-    planetary_positions = get_planetary_positions(now)
+# === Generate & Send Signals ===
+def generate_signals(selected_datetime):
+    astro_date = selected_datetime.strftime("%d-%b-%Y")
+    planetary_positions = get_planetary_positions(selected_datetime)
 
     astro_signals = []
     for symbol, sector in symbol_sector_map.items():
@@ -124,43 +109,31 @@ def run_signals():
         entry, exit_ = get_market_times(symbol)
         astro_signals.append((symbol, sentiment, entry, exit_))
 
-    # === Save to CSV log ===
-    log_file = Path("astro_signals_log.csv")
-    log_exists = log_file.exists()
-    with open(log_file, mode="a", newline="") as file:
-        writer = csv.writer(file)
-        if not log_exists:
-            writer.writerow(["Date", "GeneratedTime", "Symbol", "Sentiment", "Entry", "Exit"])
-        for symbol, sentiment, entry, exit_ in astro_signals:
-            writer.writerow([astro_date, now.strftime("%H:%M"), symbol, sentiment, entry, exit_])
-
-    # === Format message ===
-    now_str = now.strftime("%d-%b-%Y %H:%M")
+    # Format message
+    now_str = selected_datetime.strftime("%d-%b-%Y %H:%M")
     message_lines = [f"📅 Astro-Trading Signals — {astro_date} (Generated {now_str})"]
     for symbol, sentiment, entry, exit_ in astro_signals:
         emoji = "🟢" if sentiment == "Bullish" else "🔴"
         message_lines.append(f"{emoji} {symbol} → {sentiment} | Entry: {entry} | Exit: {exit_}")
     message_text = "\n".join(message_lines)
 
-    # === Send to Telegram ===
+    # Send to Telegram
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": message_text,
-        "parse_mode": "HTML"
-    }
-    response = requests.post(url, data=payload)
+    payload = {"chat_id": CHAT_ID, "text": message_text, "parse_mode": "HTML"}
+    requests.post(url, data=payload)
 
-    if response.status_code == 200:
-        print(f"✅ Signals sent to Telegram successfully at {now_str}")
-    else:
-        print(f"❌ Failed to send: {response.text}")
+    return message_text
 
-# === Schedule jobs ===
-schedule.every().day.at("08:00").do(run_signals)   # Morning run
-schedule.every().day.at("23:30").do(run_signals)   # Night run
+# === Streamlit UI ===
+st.title("🔮 Astro Trading Signal Generator")
 
-print("⏳ Waiting for scheduled runs at 08:00 and 23:30...")
-while True:
-    schedule.run_pending()
-    time.sleep(30)
+default_time = datetime.datetime.now()
+selected_date = st.date_input("Select Date", default_time.date())
+selected_time = st.time_input("Select Time", default_time.time())
+
+if st.button("Generate Signals"):
+    dt = datetime.datetime.combine(selected_date, selected_time)
+    st.info("Calculating planetary positions and generating signals...")
+    signals = generate_signals(dt)
+    st.text_area("Generated Signals", signals, height=500)
+    st.success("✅ Signals generated and sent to Telegram!")

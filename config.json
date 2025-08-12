@@ -1,83 +1,14 @@
-import streamlit as st
-import pandas as pd
-import json
-from datetime import datetime
-
-# === Load Config ===
-with open("config.json") as f:
-    config = json.load(f)
-
-def normalize_name(name):
-    """Normalize nakshatra names for matching."""
-    return name.strip().lower().replace(" ", "")
-
-def is_friendly(planet, nakshatra):
-    nak_norm = normalize_name(nakshatra)
-    return any(nak_norm in normalize_name(n) for n in config["friendly_nakshatras"].get(planet, []))
-
-def is_enemy(planet, nakshatra):
-    nak_norm = normalize_name(nakshatra)
-    return any(nak_norm in normalize_name(n) for n in config["enemy_nakshatras"].get(planet, []))
-
-st.title("📅 Astro-Trading Signals — Intraday Windows")
-
-# === File Uploaders ===
-watchlist_file = st.file_uploader("Upload Watchlist TXT", type="txt")
-transit_file = st.file_uploader("Upload Planetary Transit TXT", type="txt")
-
-if watchlist_file and transit_file:
-    # Load watchlist
-    watchlist_symbols = [line.strip() for line in watchlist_file if line.strip()]
-
-    # Load planetary transit
-    df_transit = pd.read_csv(transit_file, sep="\t")
-    df_transit.columns = [c.strip() for c in df_transit.columns]
-
-    today_str = datetime.now().strftime("%d-%b-%Y")
-    generated_time = datetime.now().strftime("%d-%b-%Y %H:%M")
-
-    all_signals = []
-
-    # === Process each sector ===
-    for sector, planets in config["sectors"].items():
-        sector_symbols = [s for s in watchlist_symbols if sector in s.upper()]
-
-        for planet in planets:
-            planet_rows = df_transit[df_transit["Planet"].str.strip() == planet].sort_values(by="Time")
-
-            sentiment_rows = []
-            for _, row in planet_rows.iterrows():
-                nakshatra = row["Nakshatra"].strip()
-                if is_friendly(planet, nakshatra):
-                    sentiment_rows.append((row["Time"], "Bullish"))
-                elif is_enemy(planet, nakshatra):
-                    sentiment_rows.append((row["Time"], "Bearish"))
-                # Neutral is skipped
-
-            # === Group continuous sentiment periods ===
-            grouped = []
-            if sentiment_rows:
-                current_sentiment = sentiment_rows[0][1]
-                start_time = sentiment_rows[0][0]
-
-                for i in range(1, len(sentiment_rows)):
-                    time, sentiment = sentiment_rows[i]
-                    if sentiment != current_sentiment:
-                        grouped.append((current_sentiment, start_time, sentiment_rows[i-1][0]))
-                        current_sentiment = sentiment
-                        start_time = time
-                grouped.append((current_sentiment, start_time, sentiment_rows[-1][0]))
-
-            # === Map to symbols ===
-            for sentiment, entry, exit_time in grouped:
-                for symbol in sector_symbols:
-                    all_signals.append((symbol, sentiment, entry, exit_time))
-
-    # === Output ===
-    if all_signals:
-        st.write(f"📅 **Astro-Trading Signals — {today_str} (Generated {generated_time})**")
-        for symbol, sentiment, entry, exit_time in all_signals:
-            emoji = "🟢" if sentiment == "Bullish" else "🔴"
-            st.write(f"{emoji} {symbol} → {sentiment} | Entry: {entry} | Exit: {exit_time}")
-    else:
-        st.warning("No bullish or bearish signals found for today.")
+{
+  "sectors": {
+    "BANKING": ["Jupiter", "Venus"],
+    "PHARMA": ["Sun", "Mars"]
+  },
+  "friendly_nakshatras": {
+    "Jupiter": ["Punarvasu", "Vishakha", "Purva Bhadrapada"],
+    "Venus": ["Bharani", "Purva Phalguni", "Purva Ashadha"]
+  },
+  "enemy_nakshatras": {
+    "Jupiter": ["Ashlesha", "Jyeshtha"],
+    "Venus": ["Krittika", "Magha"]
+  }
+}
